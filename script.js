@@ -1,9 +1,8 @@
 // ========================================
 // CONSTANTS & CONFIG
 // ========================================
-const STORAGE_KEY = 'weddingPlannerData';
 const DATA_VERSION = 1;
-const ASSET_VERSION = '20261014browser';
+const ASSET_VERSION = '20261015loading';
 const DATE_FORMATTER = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 const SHORT_DATE_FORMATTER = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -62,7 +61,6 @@ const ICONS = {
     calendarEmpty: '<svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">\r\n                        <rect x="3" y="4" rx="2"/>\r\n                        <line x1="16" y1="2" x2="16" y2="6"/>\r\n                        <line x1="8" y1="2" x2="8" y2="6"/>\r\n                        <line x1="3" y1="10" x2="21" y2="10"/>\r\n                        <line x1="12" y1="14" x2="12" y2="18"/>\r\n                        <line x1="10" y1="16" x2="14" y2="16"/>\r\n                    </svg>',
     uploadData: '<svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">\r\n                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>\r\n                            <polyline points="7 10 12 15 17 10"></polyline>\r\n                            <line x1="12" y1="15" x2="12" y2="3"></line>\r\n                        </svg>',
     downloadData: '<svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">\r\n                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>\r\n                            <polyline points="17 8 12 3 7 8"></polyline>\r\n                            <line x1="12" y1="3" x2="12" y2="15"></line>\r\n                        </svg>',
-    databaseData: '<svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">\r\n                            <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>\r\n                        </svg>',
     saveCheck: '<svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">\n                        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>\n                        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>\n                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>\n                    </svg>'
 };
 
@@ -292,26 +290,158 @@ const KUA_CHECKLIST = {
     ]
 };
 
-const DEFAULT_TIMELINE_TASKS = [
-    { period: '12plus', task: 'Tentukan tanggal pernikahan', priority: 'Sangat Tinggi' },
-    { period: '12plus', task: 'Buat anggaran kasar', priority: 'Sangat Tinggi' },
-    { period: '12plus', task: 'Pilih wedding organizer', priority: 'Tinggi' },
-    { period: '6to12', task: 'Booking venue', priority: 'Sangat Tinggi' },
-    { period: '6to12', task: 'Pilih fotografer dan videografer', priority: 'Tinggi' },
-    { period: '6to12', task: 'Pilih makeup artist', priority: 'Tinggi' },
-    { period: '6to12', task: 'Pilih catering', priority: 'Tinggi' },
-    { period: '3to6', task: 'Order undangan', priority: 'Tinggi' },
-    { period: '3to6', task: 'Pilih busana pengantin', priority: 'Tinggi' },
-    { period: '3to6', task: 'Booking dekorasi', priority: 'Tinggi' },
-    { period: '1to3', task: 'Kirim undangan', priority: 'Sangat Tinggi' },
-    { period: '1to3', task: 'Finalisasi daftar tamu', priority: 'Sangat Tinggi' },
-    { period: '1to3', task: 'Meeting dengan vendor', priority: 'Tinggi' },
-    { period: '2to4weeks', task: 'Final fitting busana', priority: 'Tinggi' },
-    { period: '2to4weeks', task: 'Konfirmasi jumlah tamu ke catering', priority: 'Sangat Tinggi' },
-    { period: '1week', task: 'Final meeting dengan semua vendor', priority: 'Sangat Tinggi' },
-    { period: '1week', task: 'Persiapkan barang-barang yang dibawa', priority: 'Tinggi' },
-    { period: 'dayof', task: 'Nikah', priority: 'Sangat Tinggi' }
-];
+
+// Google Sheets transport. Connection state and pending edits live in memory only.
+const CLOUD_URLS = {
+    data: 'https://script.google.com/macros/s/AKfycbx07hy5UwAwKfFW2FcDsUox4Db81S4JRAEC22QzGGh58_D_XoMQ0xsXroZPCg60VVU0/exec',
+};
+const cloud = { connected: false, revision: 0, theme: 'light', lastBackup: '', pending: null, saving: false, failed: false };
+const cloudBridges = new Map();
+
+
+function cloudBridge(kind) {
+    if (cloudBridges.has(kind)) return cloudBridges.get(kind);
+    const channel = [...crypto.getRandomValues(new Uint8Array(16))].map(n => n.toString(16).padStart(2, '0')).join('');
+    const pending = new Map();
+    let peer = null;
+    let peerOrigin = '';
+    let readyResolve;
+    let readyReject;
+    const ready = new Promise((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
+    const frame = document.createElement('iframe');
+    frame.hidden = true;
+    frame.title = 'Penghubung Google Sheets';
+    const url = new URL(CLOUD_URLS[kind]);
+    url.searchParams.set('origin', location.origin);
+    url.searchParams.set('channel', channel);
+    frame.src = url.href;
+    const timeout = setTimeout(() => readyReject(new Error('Penghubung Google Sheets tidak merespons. Pastikan deployment memakai versi terbaru, Execute as: Me, dan Who has access: Anyone.')), 20000);
+    const onMessage = event => {
+        const msg = event.data;
+        if (!msg || msg.channel !== channel || !/^https:\/\/(?:[a-z0-9-]+-)?script\.googleusercontent\.com$/.test(event.origin)) return;
+        if (msg.type === 'ready' && !peer) {
+            peer = event.source;
+            peerOrigin = event.origin;
+            clearTimeout(timeout);
+            readyResolve();
+        }
+        if (event.source !== peer || event.origin !== peerOrigin || msg.type !== 'response' || !pending.has(msg.id)) return;
+        const job = pending.get(msg.id);
+        pending.delete(msg.id);
+        clearTimeout(job.timer);
+        if (msg.error) job.reject(new Error(msg.error)); else job.resolve(msg.result);
+    };
+    window.addEventListener('message', onMessage);
+    document.body.appendChild(frame);
+    const call = async request => {
+        await ready;
+        const id = crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => { pending.delete(id); reject(new Error('Respons API terlalu lama. Coba ulang; jangan tutup tab.')); }, request.action === 'load' ? 30000 : 60000);
+            pending.set(id, { resolve, reject, timer });
+            peer.postMessage({ channel, type: 'request', id, request }, peerOrigin);
+        });
+    };
+    call.dispose = () => {
+        clearTimeout(timeout);
+        window.removeEventListener('message', onMessage);
+        frame.remove();
+        pending.forEach(job => { clearTimeout(job.timer); job.reject(new Error('Koneksi diulang.')); });
+        pending.clear();
+        cloudBridges.delete(kind);
+    };
+    cloudBridges.set(kind, call);
+    return call;
+}
+
+async function loadCloudData() {
+    document.body.classList.add('cloud-loading');
+    document.getElementById('app').inert = true;
+    const panel = document.createElement('div');
+    panel.className = 'cloud-load-panel';
+    panel.innerHTML = '<div class="card cloud-load-card"><h1>Wedding Planner</h1><p role="status">Memuat data Google Sheets…</p><button class="btn btn-primary" hidden>Coba lagi</button></div>';
+    document.body.appendChild(panel);
+    return new Promise(resolve => {
+        const button = panel.querySelector('button');
+        const attempt = async () => {
+            button.hidden = true;
+            panel.querySelector('[role=status]').textContent = 'Memuat data Google Sheets…';
+            try {
+                if (!['https://devasmaradev.github.io', 'http://localhost:5500', 'http://127.0.0.1:5500'].includes(location.origin)) throw new Error('Buka aplikasi melalui https://devasmaradev.github.io/Wedding-Planner/ atau localhost:5500. Alamat ini belum diizinkan oleh Apps Script.');
+                const loaded = await cloudBridge('data')({ action: 'load' });
+                cloud.revision = loaded.revision;
+                const payload = loaded.payload;
+                weddingData = payload ? payload.data : getDefaultData();
+                ensureDataStructure();
+                cloud.theme = payload?.preferences?.theme === 'dark' ? 'dark' : 'light';
+                cloud.lastBackup = payload?.preferences?.lastBackup || '';
+                cloud.connected = true;
+                document.documentElement.setAttribute('data-theme', cloud.theme);
+                panel.remove();
+                document.body.classList.remove('cloud-loading');
+                document.getElementById('app').inert = false;
+                resolve();
+            } catch (error) {
+                panel.querySelector('[role=status]').textContent = error.message;
+                button.hidden = false;
+                cloudBridges.get('data')?.dispose();
+            }
+        };
+        button.addEventListener('click', attempt);
+        attempt();
+    });
+}
+
+function cloudSaveStatus(message, failed = false) {
+    let status = document.getElementById('cloudSaveStatus');
+    if (!status) {
+        status = document.createElement('div');
+        status.id = 'cloudSaveStatus';
+        status.className = 'cloud-save-status';
+        status.innerHTML = '<span role="status"></span><button class="btn btn-secondary btn-sm" hidden>Coba simpan lagi</button>';
+        status.querySelector('button').addEventListener('click', () => { cloud.failed = false; flushCloudSaves(); });
+        document.body.appendChild(status);
+    }
+    status.querySelector('span').textContent = message;
+    status.querySelector('button').hidden = !failed;
+}
+
+async function flushCloudSaves() {
+    if (cloud.saving || cloud.failed || !cloud.pending) return;
+    cloud.saving = true;
+    try {
+        while (cloud.pending) {
+            const payload = cloud.pending;
+            cloud.pending = null;
+            cloudSaveStatus('Menyimpan ke Google Sheets…');
+            try {
+                const result = await cloudBridge('data')({ action: 'save', revision: cloud.revision, payload });
+                cloud.revision = result.revision;
+                cloudSaveStatus(result.warning || 'Tersimpan di Google Sheets');
+                if (result.warning) showToast(result.warning, 'warning');
+            } catch (error) {
+                // A timed-out response may still have committed. Recover its acknowledgement.
+                try {
+                    const loaded = await cloudBridge('data')({ action: 'load' });
+                    if (loaded.payload?.writeId === payload.writeId) {
+                        cloud.revision = loaded.revision;
+                        cloudSaveStatus('Tersimpan di Google Sheets');
+                        continue;
+                    }
+                } catch (_) { /* Keep pending edits in memory until retry or export. */ }
+                cloud.pending = cloud.pending || payload;
+                cloud.failed = true;
+                cloudSaveStatus(error.message + ' Perubahan masih di tab ini.', true);
+                showToast('Penyimpanan gagal. Jangan tutup tab; export backup untuk menjaga perubahan.', 'error');
+                break;
+            }
+        }
+    } finally { cloud.saving = false; }
+}
+
+window.addEventListener('beforeunload', event => {
+    if (cloud.pending || cloud.saving) { event.preventDefault(); event.returnValue = ''; }
+});
 
 // ========================================
 // DEFAULT DATA
@@ -330,17 +460,7 @@ function getDefaultData() {
             weddingRoles: [...DEFAULT_WEDDING_ROLES],
             fundSources: [...DEFAULT_FUND_SOURCES]
         },
-        timeline: DEFAULT_TIMELINE_TASKS.map((t, i) => ({
-            id: generateId(),
-            period: t.period,
-            task: t.task,
-            deadline: '',
-            assignee: '',
-            priority: t.priority ||'Sedang',
-            category: '',
-            completed: false,
-            notes: ''
-        })),
+        timeline: [],
         rundown: [],
         events: [],
         packing: [],
@@ -397,33 +517,7 @@ const boundSettingsInputs = new WeakSet();
 // ========================================
 // STORAGE
 // ========================================
-function loadData() {
-    try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-            const parsed = JSON.parse(stored);
-            if (parsed && parsed.version === DATA_VERSION && parsed.data && typeof parsed.data === 'object') {
-                weddingData = parsed.data;
-                ensureDataStructure();
-            } else if (parsed && parsed.data && typeof parsed.data === 'object') {
-                weddingData = migrateData(parsed);
-            } else {
-                console.warn('Invalid stored data structure, using defaults');
-                weddingData = getDefaultData();
-            }
-        } else {
-            weddingData = getDefaultData();
-        }
-    } catch (error) {
-        console.error('Error loading data:', error);
-        weddingData = getDefaultData();
-        try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
-    }
-
-    if (!weddingData || typeof weddingData !== 'object' || !weddingData.settings) {
-        weddingData = getDefaultData();
-    }
-}
+async function loadData() { await loadCloudData(); }
 
 function ensureDataStructure() {
     const defaultData = getDefaultData();
@@ -440,20 +534,15 @@ function ensureDataStructure() {
     if (!weddingData.honeymoon.destination) weddingData.honeymoon.destination = {};
     if (!weddingData.honeymoon.itinerary) weddingData.honeymoon.itinerary = [];
     if (!weddingData.honeymoon.expenses) weddingData.honeymoon.expenses = [];
+    if (!weddingData.honeymoon.bookings) weddingData.honeymoon.bookings = defaultData.honeymoon.bookings;
     if (!weddingData.kuaChecklist) weddingData.kuaChecklist = defaultData.kuaChecklist;
 }
 
 function saveData() {
-    try {
-        const toSave = {
-            version: DATA_VERSION,
-            data: weddingData
-        };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
-    } catch (error) {
-        console.error('Error saving data:', error);
-        showToast('Gagal menyimpan data', 'error');
-    }
+    if (!cloud.connected) { showToast('Data belum selesai dimuat.', 'error'); return; }
+    cloud.pending = JSON.parse(JSON.stringify({ version: DATA_VERSION, data: weddingData, preferences: {theme: cloud.theme, lastBackup: cloud.lastBackup}, writeId: crypto.randomUUID() }));
+    cloudSaveStatus('Perubahan menunggu penyimpanan Google Sheets…', cloud.failed);
+    flushCloudSaves();
 }
 
 function migrateData(oldData) {
@@ -485,7 +574,8 @@ function exportBackup() {
     a.download = `wedding-planner-backup-${formatDateForFilename(new Date())}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    localStorage.setItem('wp_last_backup', new Date().toISOString());
+    cloud.lastBackup = new Date().toISOString();
+    saveData();
     showToast('Backup berhasil diexport', 'success');
 }
 
@@ -512,12 +602,10 @@ function importBackup(file) {
 function resetData() {
     openModal('Reset Data', `
         <p class="modal-confirm-message text-center">Apakah Anda yakin ingin menghapus <strong>seluruh</strong> data aplikasi?</p>
-        <p class="text-muted text-center">Tindakan ini akan mengosongkan semua data tanpa tersisa dan tidak dapat dibatalkan.</p>
+        <p class="text-muted text-center">Tindakan ini mengosongkan data aktif di Google Sheets. Riwayat snapshot server tetap disimpan.</p>
     `, [
         { label: 'Batal', class: 'btn-secondary', onClick: closeModal },
-        { label: 'Reset Bersih', class: 'btn-danger', onClick: () => {
-                localStorage.removeItem(STORAGE_KEY);
-                localStorage.removeItem('wp_currentPage');
+        { label: 'Kosongkan Data Aktif', class: 'btn-danger', onClick: () => {
 
                 const blankData = getDefaultData();
                 blankData.timeline = []; // Kosongkan timeline bawaan
@@ -529,7 +617,7 @@ function resetData() {
                 saveData();
                 navigateTo('dashboard', true);
                 closeModal();
-                showToast('Seluruh data berhasil dihapus permanen', 'success');
+                showToast('Data aktif dikosongkan; menunggu konfirmasi Google Sheets. Riwayat server tetap tersimpan.', 'info');
         }}
     ]);
 }
@@ -753,6 +841,10 @@ function showConfirmDialog(title, message, onConfirm, confirmText = 'Hapus', con
  * Shows a toast notification
 */
 function showToast(message, type = 'success') {
+    if (type === 'success' && (cloud.pending || cloud.saving)) {
+        message += ' — menunggu konfirmasi Google Sheets';
+        type = 'info';
+    }
     const container = document.getElementById('toastContainer');
     if (!container) return;
 
@@ -1208,48 +1300,34 @@ function setSidebarOpen(open) {
 }
 
 function rememberCurrentPage() {
-    try { sessionStorage.setItem('wp_currentPage', currentPage); } catch (_) { /* Storage can be disabled. */ }
+    const params = new URLSearchParams(location.hash.slice(1));
+    params.set('page', currentPage);
+    history.replaceState(null, '', location.pathname + location.search + '#' + params.toString());
 }
 
 function getInitialPage() {
-    const navigation = performance.getEntriesByType('navigation')[0];
-    if (navigation?.type !== 'reload') return 'dashboard';
-    try {
-        const page = sessionStorage.getItem('wp_currentPage');
-        return Object.prototype.hasOwnProperty.call(PAGE_RENDERERS, page) ? page : 'dashboard';
-    } catch (_) { return 'dashboard'; }
+    if (performance.getEntriesByType('navigation')[0]?.type !== 'reload') return 'dashboard';
+    const page = new URLSearchParams(location.hash.slice(1)).get('page');
+    return Object.prototype.hasOwnProperty.call(PAGE_RENDERERS, page) ? page : 'dashboard';
 }
 
 function initSidebarScrollPersistence() {
     const nav = document.getElementById('sidebarNav');
     if (!nav) return;
     const isReload = performance.getEntriesByType('navigation')[0]?.type === 'reload';
-    let saved = 0;
-    try {
-        const position = Number(sessionStorage.getItem('wp_sidebarScrollTop'));
-        if (isReload && Number.isFinite(position) && position >= 0) saved = position;
-    } catch (_) { /* Storage can be disabled. */ }
+    const saved = Number(new URLSearchParams(location.hash.slice(1)).get('nav')) || 0;
     let restoring = isReload;
     const remember = () => {
-        try { sessionStorage.setItem('wp_sidebarScrollTop', String(nav.scrollTop)); } catch (_) { /* Storage can be disabled. */ }
+        const params = new URLSearchParams(location.hash.slice(1));
+        params.set('nav', String(Math.round(nav.scrollTop)));
+        history.replaceState(null, '', location.pathname + location.search + '#' + params.toString());
     };
-    const restore = () => {
-        if (!restoring) return;
-        nav.scrollTop = Math.min(saved, Math.max(0, nav.scrollHeight - nav.clientHeight));
-    };
-    nav.addEventListener('scroll', () => { if (!restoring) remember(); }, { passive: true });
-    for (const type of ['wheel', 'pointerdown', 'keydown']) {
-        nav.addEventListener(type, () => { restoring = false; }, { passive: true });
-    }
-    window.addEventListener('pagehide', remember);
-    if (!isReload) { nav.scrollTop = 0; remember(); return; }
+    nav.addEventListener('scroll', () => { if (!restoring) remember(); }, {passive:true});
+    for (const type of ['wheel','pointerdown','keydown']) nav.addEventListener(type, () => {restoring=false;}, {passive:true});
+    const restore = () => { if (restoring) nav.scrollTop = Math.min(Math.max(0,saved),Math.max(0,nav.scrollHeight-nav.clientHeight)); };
+    if (!isReload) { nav.scrollTop=0; remember(); return; }
     requestAnimationFrame(restore);
-    const ready = document.fonts ? document.fonts.ready : Promise.resolve();
-    ready.then(() => requestAnimationFrame(() => {
-        restore();
-        restoring = false;
-        remember();
-    }));
+    (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => requestAnimationFrame(() => {restore();restoring=false;remember();}));
 }
 
 function initMobileMenu() {
@@ -1583,22 +1661,6 @@ function openBackupModal() {
                 <button class="btn btn-secondary btn-sm" onclick="triggerImportBackup()">Import</button>
             </div>
 
-            <div class="backup-option-card">
-                <div class="backup-option-info">
-                    <div class="backup-option-icon">
-                        ${renderIcon("databaseData", "width=\"20\" height=\"20\"")}
-                    </div>
-                    <div class="backup-option-text">
-                        <div class="backup-option-title">Isi Data Contoh</div>
-                        <p class="backup-option-desc">Isi data simulasi lengkap untuk mencoba fitur aplikasi</p>
-                    </div>
-                </div>
-                <div class="btn-group sample-data-actions">
-                    <button class="btn btn-secondary btn-sm" onclick="fillSampleData()">Isi Data</button>
-                    <button class="btn btn-secondary btn-sm" onclick="openSamplePreviewMenu()">Uji Pop-up</button>
-                </div>
-            </div>
-
             <div class="backup-option-card danger">
                 <div class="backup-option-info">
                     <div class="backup-option-icon danger">
@@ -1606,7 +1668,7 @@ function openBackupModal() {
                     </div>
                     <div class="backup-option-text">
                         <div class="backup-option-title text-danger">Reset Data</div>
-                        <p class="backup-option-desc">Hapus seluruh data aplikasi secara bersih dan permanen</p>
+                        <p class="backup-option-desc">Kosongkan data aktif; riwayat server tetap tersimpan</p>
                     </div>
                 </div>
                 <button class="btn btn-danger btn-sm" onclick="resetData()">Reset</button>
@@ -1720,14 +1782,14 @@ function renderDashboard() {
         </div>
         ` : ''}
 
-        ${!localStorage.getItem('wp_last_backup') && (guestSummary.totalGuests > 0 || budgetSummary.totalActual > 0) ? `
+        ${!cloud.lastBackup && (guestSummary.totalGuests > 0 || budgetSummary.totalActual > 0) ? `
         <div class="card card--highlight-primary mb-3 p-3">
             <div class="flex-between flex-wrap gap-2">
                 <div class="flex items-center gap-2">
                     <div class="text-primary flex items-center">${ICONS.settings}</div>
                     <div>
                         <div class="fw-600 text-ink">Cadangkan Data Anda</div>
-                        <div class="fs-sm text-secondary">Data disimpan secara lokal di browser Anda. Unduh cadangan JSON agar rencana pernikahan Anda selalu aman.</div>
+                        <div class="fs-sm text-secondary">Data disimpan di Google Sheets. Unduh cadangan JSON untuk menyimpan salinan mandiri.</div>
                     </div>
                 </div>
                 <button class="btn btn-sm btn-secondary" onclick="openBackupModal()">Cadangkan Sekarang</button>
@@ -2613,8 +2675,6 @@ function initTimelineEvents() {
 }
 
 function resetTimelineFilters() {
-    localStorage.removeItem('timelineFilterStatus');
-    localStorage.removeItem('timelineFilterPriority');
     const search = document.getElementById('timelineSearch');
     if (search) search.value = '';
     const statusFilter = document.getElementById('timelineFilterStatus');
@@ -3879,8 +3939,6 @@ function filterVendorCards() {
 }
 
 function resetVendorFilters() {
-    localStorage.removeItem('vendorFilterCategory');
-    localStorage.removeItem('vendorFilterStatus');
     const search = document.getElementById('vendorSearch');
     if (search) search.value = '';
     const categoryFilter = document.getElementById('vendorFilterCategory');
@@ -4855,8 +4913,6 @@ function filterBudgetCards() {
 }
 
 function resetBudgetFilters() {
-    localStorage.removeItem('budgetFilterCategory');
-    localStorage.removeItem('budgetFilterStatus');
     const searchInput = document.getElementById('budgetSearch');
     const categoryFilter = document.getElementById('budgetFilterCategory');
     const statusFilter = document.getElementById('budgetFilterStatus');
@@ -7929,713 +7985,6 @@ function checkCountdownReminders() {
 }
 
 // ========================================
-// SAMPLE DATA
-// ========================================
-function fillSampleData() {
-    openModal('Skenario Data Contoh', `
-        <p class="text-center">Pilih kondisi untuk menguji tampilan, banner dan alur setiap modul. Data tidak diganti sebelum konfirmasi. Nama, kontak, harga, dan detail layanan adalah data simulasi untuk pengujian, bukan informasi atau penawaran resmi.</p>
-        <div class="sample-scenario-grid">
-            ${SAMPLE_SCENARIOS.map(s => `<div class="sample-scenario"><h4>${s.label}</h4><p>${s.description}</p><button class="btn btn-secondary btn-sm" onclick="confirmSampleScenario('${s.id}')">Gunakan skenario</button><button class="btn btn-ghost btn-sm" onclick="exportSampleScenario('${s.id}')">Export JSON untuk import</button></div>`).join('')}
-        </div>
-    `, [{ label: 'Tutup', class: 'btn-secondary', onClick: closeModal }], 'modal-lg');
-}
-
-const SAMPLE_SCENARIOS = [
-    { id: 'empty', label: 'Kosong', description: 'Modul kosong, onboarding, empty state dan tombol tambah.' },
-    { id: 'unconfigured', label: 'Tanggal belum diatur', description: 'Data terisi, profil/tanggal kosong: welcome panel dan countdown tanpa angka.' },
-    { id: 'normal', label: 'Persiapan normal', description: 'H-75, semua modul terisi, status campuran dan catatan dengan/tanpa isi.' },
-    { id: 'warnings', label: 'Peringatan & jatuh tempo', description: 'Over-budget, tugas/tagihan terlambat, KUA belum lengkap dan tamu belum mendapat meja.' },
-    { id: 'h30', label: 'H-30', description: 'Countdown 30 hari dan notifikasi pengingat vendor/DP.' },
-    { id: 'h7', label: 'H-7', description: 'Countdown satu minggu dan notifikasi rundown/RSVP.' },
-    { id: 'h1', label: 'H-1', description: 'Countdown satu hari dan pengingat menjelang pernikahan.' },
-    { id: 'today', label: 'Hari pernikahan', description: 'Pesan Hari Pernikahan, notifikasi ucapan dan acara pada kalender hari ini.' },
-    { id: 'past', label: 'Setelah pernikahan', description: 'Tanggal lampau, hadiah, countdown selesai dan honeymoon.' },
-    { id: 'complete', label: 'Semua selesai', description: 'Progress 100%, tagihan lunas, dokumen/foto selesai dan ucapan terkirim.' },
-    { id: 'dense', label: 'Daftar panjang', description: 'Seluruh modul berisi daftar panjang, status campuran, catatan multiline, dan agenda per tanggal untuk menguji scroll/filter/detail.' }
-];
-
-function confirmSampleScenario(id) {
-    const scenario = SAMPLE_SCENARIOS.find(s => s.id === id);
-    if (!scenario) return;
-    openModal('Gunakan Data Contoh: ' + scenario.label, `
-        <div class="modal-confirm-content">
-            <p class="modal-confirm-message">Data aplikasi saat ini akan ditimpa dan penanda backup direset untuk menampilkan reminder. Export backup terlebih dahulu jika ingin menyimpan data sebelumnya.</p>
-            <p class="text-muted mb-0">${scenario.description}</p>
-        </div>
-    `, [
-        { label: 'Batal', class: 'btn-secondary', onClick: fillSampleData },
-        { label: 'Ganti dengan data contoh', class: 'btn-primary', onClick: () => {
-            applySampleData(id);
-            closeModal(() => {
-                navigateTo('dashboard', true);
-                showToast('Skenario ' + scenario.label + ' berhasil diisi', 'success');
-            });
-        } }
-    ]);
-}
-
-function applySampleData(scenario = 'normal') {
-    weddingData = buildSampleData(scenario);
-    settingsDraft = null;
-    currentEditId = null;
-    calendarDate = new Date();
-    localStorage.removeItem('wp_last_backup');
-    saveData();
-}
-
-function exportSampleScenario(id) {
-    if (!SAMPLE_SCENARIOS.some(s => s.id === id)) return;
-    const payload = { version: DATA_VERSION, data: buildSampleData(id) };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `wedding-planner-sample-${id}-${getSampleDate(0)}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    showToast('File skenario diunduh; dapat dipakai untuk menguji Import', 'success');
-}
-
-function enrichSampleData(data) {
-    const relativeDate = days => {
-        const date = new Date(data.settings.weddingDate + 'T12:00:00');
-        date.setDate(date.getDate() + days);
-        return [date.getFullYear(), String(date.getMonth()+1).padStart(2,'0'), String(date.getDate()).padStart(2,'0')].join('-');
-    };
-    data.vendors.forEach(vendor => {
-        if (vendor.category === 'Foto & Video') vendor.category = 'Fotografer';
-        if (vendor.category === 'MUA') vendor.category = 'Makeup Artist';
-        if (/Wedding Organizer/i.test(vendor.name)) vendor.category = 'Wedding Organizer';
-    });
-    data.venues.push({ id: generateId(), name: 'Taman Arunika (Venue Simulasi)', location: 'Jakarta Selatan', capacity: 350, price: 55000000, type: 'Outdoor', contact: '081200000030', facilities: 'Taman, ruang rias, parkir, dan opsi tenda cadangan', pros: 'Cahaya sore dan akses kursi roda', cons: 'Memerlukan rencana cadangan hujan', selected: false, notes: 'Alternatif pembanding; biaya dan fasilitas merupakan data simulasi.' });
-    data.foodDrinks.push({ id: generateId(), name: 'Air Mineral dan Teh Melati', category: 'Minuman', vendor: 'Puspa Catering Services', price: 12000, quantity: 600, selected: true, notes: 'Termasuk kebutuhan keluarga, vendor, dan kru.' });
-    data.foodDrinks.push({ id: generateId(), name: 'Pilihan Menu Vegetarian', category: 'Main Course', vendor: 'Puspa Catering Services', price: 50000, quantity: 40, selected: false, notes: 'Alternatif untuk tamu vegetarian; konfirmasi kebutuhan saat RSVP.' });
-    data.budget.push({ id: generateId(), category: 'Catering', description: 'Kue pernikahan dekoratif dan sajian keluarga', vendor: 'Le Novelle Cake', budget: 15000000, actualCost: 15000000, paid: 5000000, dueDate: relativeDate(-7), status: 'DP', fundSource: data.settings.fundSources[0], notes: 'Biaya contoh terpisah dari paket catering utama.' });
-    data.photos.push({ id: generateId(), shot: 'Foto keluarga lengkap sebelum resepsi', category: 'Keluarga', priority: 'Tinggi', time: '18:30', location: 'Pelaminan', completed: false, notes: 'Daftar urutan keluarga dibawa koordinator agar sesi efisien.' });
-    data.photos.forEach((item, i) => { item.completed = i % 4 === 0; });
-    data.packing.forEach((item, i) => {
-        if (!PACKING_CATEGORIES.includes(item.category)) item.category = 'Lainnya';
-        item.notes ||= 'Periksa jumlah, kondisi, dan label pemilik sebelum dimasukkan ke tas.';
-        item.carrier ||= 'Koordinator perlengkapan';
-        item.destination ||= 'Ruang persiapan venue';
-        item.packed = i % 3 === 0;
-    });
-    data.budget.forEach((item, i) => {
-        item.dueDate = relativeDate(-14 + i % 12);
-    });
-    const requiredVendors = new Map();
-    data.budget.forEach(item => { if (item.vendor) requiredVendors.set(item.vendor, item.actualCost); });
-    data.foodDrinks.forEach(item => { if (item.vendor && !requiredVendors.has(item.vendor)) requiredVendors.set(item.vendor, item.price * item.quantity); });
-    data.rundown.forEach(item => { if (item.vendor && !requiredVendors.has(item.vendor)) requiredVendors.set(item.vendor, 0); });
-    requiredVendors.forEach((price, name) => {
-        if (!data.vendors.some(vendor => vendor.name === name)) data.vendors.push({ id: generateId(), name, category: /Ballroom/.test(name) ? 'Venue' : 'Lainnya', contact: '081200000031', social: 'https://example.com/vendor', price, rating: 4, package: 'Paket layanan contoh sesuai kebutuhan acara', pros: 'PIC tersedia saat koordinasi', cons: 'Jadwal dan biaya perlu dikonfirmasi', status: 'Terpilih', notes: 'Vendor simulasi untuk menguji hubungan anggaran/menu/rundown.' });
-    });
-    const contactNames = new Set([...data.rundown.map(item => item.pic), ...data.vendors.map(item => item.name), ...data.weddingParty.map(item => item.name)].filter(Boolean));
-    contactNames.forEach(name => {
-        if (!data.contacts.some(contact => contact.name === name)) data.contacts.push({ id: generateId(), name, category: data.vendors.some(vendor => vendor.name === name) ? 'Vendor' : 'Keluarga', company: data.vendors.find(vendor => vendor.name === name)?.name || 'Tim keluarga dan pendamping', phone: '', whatsapp: '', email: '', instagram: '', address: 'Jakarta', notes: 'Kontak simulasi untuk koordinasi persiapan dan hari acara.' });
-    });
-    data.contacts.forEach((contact, i) => {
-        contact.phone = '0812000' + String(i+1).padStart(5,'0');
-        contact.whatsapp = contact.phone;
-        contact.email = 'kontak' + (i+1) + '@example.com';
-        contact.instagram ||= 'https://example.com/kontak/' + (i+1);
-        contact.company ||= 'Koordinator keluarga';
-        contact.address ||= 'Jakarta';
-    });
-    data.vendors.forEach(vendor => { vendor.contact = data.contacts.find(contact => contact.name === vendor.name).phone; });
-    data.weddingParty.forEach(member => { member.contact = data.contacts.find(contact => contact.name === member.name).phone; });
-    data.settings.weddingRoles = [...new Set([...data.settings.weddingRoles, ...data.weddingParty.map(member => member.role)])];
-    data.guests.forEach((guest, i) => {
-        guest.phone = '0812100' + String(i+1).padStart(5,'0');
-        guest.notes ||= 'Konfirmasi kehadiran, jumlah rombongan, dan kebutuhan aksesibilitas.';
-    });
-    data.honeymoon.destination.currency = data.settings.currency;
-    data.honeymoon.destination.budget = 75000000;
-    data.honeymoon.expenses.push({ id: generateId(), date: getSampleDate(-1), category: 'Transportasi', description: 'Transfer bandara dan penginapan untuk dua orang (simulasi)', amount: 4000000 });
-    data.honeymoon.expenses.push({ id: generateId(), date: getSampleDate(-1), category: 'Aktivitas', description: 'Pemesanan awal snorkeling dan wisata lokal (simulasi)', amount: 2500000 });
-    data.honeymoon.itinerary.forEach(item => { item.notes += '\nRencana simulasi; cek cuaca, jam layanan, dan konfirmasi reservasi.'; });
-    return data;
-}
-
-function enrichDenseSample(data) {
-    const names = ['Alya Putri', 'Bagas Prakoso', 'Citra Lestari', 'Dewi Laras', 'Eko Saputra', 'Farah Aulia', 'Gilang Mahendra', 'Hana Kirana', 'Indra Wijaya', 'Jihan Maharani', 'Kevin Aditya', 'Laras Permata'];
-    names.forEach((name, i) => {
-        data.guests.push({ ...data.guests[0], id: generateId(), name, phone: '0812200'+String(i+1).padStart(5,'0'), tag: data.settings.guestTags[i % data.settings.guestTags.length], rsvp: RSVP_STATUSES[i % RSVP_STATUSES.length], table: '', guestCount: i % 3 + 1, invitationSent: i % 2 === 0, souvenirGiven: false, notes: 'Tamu simulasi untuk pengujian RSVP, pencarian, dan penempatan meja.\nKonfirmasi jumlah rombongan sebelum finalisasi.' });
-        data.contacts.push({ ...data.contacts[0], id: generateId(), name: 'Koordinator '+name, email: 'koordinator'+i+'@example.com', phone: '0812300'+String(i+1).padStart(5,'0'), whatsapp: '0812300'+String(i+1).padStart(5,'0') });
-        data.venues.push({ ...data.venues[2], id: generateId(), name: 'Alternatif venue '+name, price: 35000000+i*2500000, capacity: 200+i*25, selected: false });
-        data.foodDrinks.push({ ...data.foodDrinks[0], id: generateId(), name: 'Menu alternatif '+name, category: FOOD_CATEGORIES[i % FOOD_CATEGORIES.length], selected: i % 2 === 0 });
-        data.photos.push({ ...data.photos[0], id: generateId(), shot: 'Sesi dokumentasi '+name, category: PHOTO_CATEGORIES[i % PHOTO_CATEGORIES.length], priority: PRIORITIES[i % PRIORITIES.length], completed: i % 2 === 0 });
-        data.packing.push({ ...data.packing[0], id: generateId(), name: 'Perlengkapan tim '+name, category: PACKING_CATEGORIES[i % PACKING_CATEGORIES.length], packed: i % 2 === 0 });
-        data.weddingParty.push({ ...data.weddingParty[0], id: generateId(), name: 'Koordinator '+name, contact: '0812300'+String(i+1).padStart(5,'0'), role: data.settings.weddingRoles[i % data.settings.weddingRoles.length], notes: 'PIC contoh untuk koordinasi rombongan dan dokumentasi.' });
-        data.rundown.push({ id: generateId(), activity: 'Koordinasi kedatangan rombongan '+name, startTime: '06:'+String(i*5).padStart(2,'0'), endTime: '07:'+String(i*5).padStart(2,'0'), location: 'Area drop-off dan meja registrasi', pic: 'Koordinator '+name, vendor: data.vendors.find(vendor => vendor.category === 'Wedding Organizer').name, notes: 'Agenda simulasi paralel untuk penerimaan rombongan, akses kursi roda, dan distribusi informasi.', date: data.settings.weddingDate });
-        data.seating.push({ id: generateId(), name: 'Meja rombongan '+(i+1), capacity: 8, guests: [] });
-        data.gifts.push({ ...data.gifts[0], id: generateId(), giver: name, value: 'Rp '+(500000+i*100000), dateReceived: getSampleDate(-i), thankYouSent: i % 2 === 0, thankYouDate: i % 2 === 0 ? getSampleDate(0) : '', notes: 'Hadiah simulasi; verifikasi pencatatan dan status ucapan.' });
-        data.honeymoon.itinerary.push({ ...data.honeymoon.itinerary[3], id: generateId(), activity: 'Agenda perjalanan '+(i+1)+': jalan santai dan wisata lokal', date: data.honeymoon.destination.departureDate });
-        data.honeymoon.expenses.push({ id: generateId(), date: getSampleDate(-i), category: 'Lainnya', description: 'Pengeluaran perjalanan simulasi '+(i+1), amount: 150000+i*25000 });
-        const section = Object.keys(data.kuaChecklist)[i % 4];
-        data.kuaChecklist[section].push({ id: generateId(), name: 'Verifikasi administrasi tambahan '+(i+1)+' (simulasi)', checked: i % 2 === 0, notes: i % 3 ? 'Konfirmasi kebutuhan dokumen ini kepada petugas; bukan persyaratan resmi.' : '' });
-    });
-}
-
-function customizeSampleData(data, scenario) {
-    const today = getSampleDate(0);
-    const actual = data.budget.reduce((sum, b) => sum + (b.actualCost || 0), 0);
-    data.settings.targetBudget = Math.max(data.settings.targetBudget, Math.ceil(actual * 1.2));
-    ['Dipertimbangkan', 'Dihubungi', 'Meeting', 'Ditolak'].forEach((status, i) => {
-        const original = data.vendors[i];
-        data.vendors.push({ ...original, id: generateId(), name: 'Alternatif '+original.category+' '+(i+1)+' (simulasi)', status, notes: 'Pembanding vendor untuk uji shortlist, filter, dan detail; belum menjadi kontrak utama.' });
-    });
-    data.guests.slice(-RSVP_STATUSES.length).forEach((guest, i) => { guest.rsvp = RSVP_STATUSES[i]; });
-    data.budget.slice(-PAYMENT_STATUSES.length).forEach((item, i) => {
-        item.status = PAYMENT_STATUSES[i];
-        item.paid = item.status === 'Lunas' ? item.actualCost : item.status === 'Belum Dibayar' ? 0 : Math.floor(item.actualCost / 2);
-    });
-    Object.values(data.kuaChecklist).forEach(items => items.forEach((item, i) => {
-        item.checked = i % 3 === 0;
-        item.notes = i % 2 ? '' : 'Verifikasi '+item.name+'. Siapkan dokumen asli dan salinan, lalu konfirmasi kepada petugas. Catatan simulasi, bukan daftar persyaratan resmi.';
-    }));
-    if (scenario === 'empty') {
-        const empty = getDefaultData();
-        Object.keys(empty).forEach(key => { if (Array.isArray(empty[key])) empty[key] = []; });
-        Object.keys(empty.kuaChecklist).forEach(key => { empty.kuaChecklist[key] = []; });
-        return empty;
-    }
-    if (scenario === 'unconfigured') {
-        data.settings.groomName = '';
-        data.settings.brideName = '';
-        data.settings.weddingDate = '';
-        data.settings.location = '';
-    }
-    if (scenario === 'warnings') {
-        data.settings.targetBudget = Math.max(1, Math.floor(actual / 2));
-        data.timeline.forEach((t, i) => { t.completed = false; t.deadline = getSampleDate(-i - 1); });
-        data.budget.forEach((b, i) => { b.paid = 0; b.status = 'Belum Dibayar'; b.dueDate = getSampleDate(-i - 1); });
-        Object.values(data.kuaChecklist).flat().forEach(item => { item.checked = false; });
-        data.seating.forEach(table => { table.guests = []; });
-        data.guests.forEach(guest => { guest.table = ''; });
-        data.honeymoon.destination.budget = 1;
-        if (data.seating.length) {
-            data.seating.forEach(table => { table.capacity = 1; });
-            data.guests.slice(0, 6).forEach(guest => {
-                data.seating[0].guests.push(guest.name);
-                guest.table = data.seating[0].name;
-            });
-        }
-    }
-    if (scenario === 'complete') {
-        data.timeline.forEach(t => { t.completed = true; });
-        data.budget.forEach(b => { b.paid = b.actualCost; b.status = 'Lunas'; });
-        data.packing.forEach(item => { item.packed = true; });
-        data.photos.forEach(item => { item.completed = true; });
-        data.gifts.forEach(item => { item.thankYouSent = true; item.thankYouDate = today; });
-        Object.values(data.kuaChecklist).flat().forEach(item => { item.checked = true; });
-        data.seating.forEach(table => { table.guests = []; });
-        data.guests.forEach((guest, i) => {
-            guest.guestCount = 1;
-            guest.rsvp = 'Hadir';
-            const table = data.seating[i % data.seating.length];
-            table.guests.push(guest.name);
-            table.capacity = Math.max(table.capacity, table.guests.length);
-            guest.table = table.name;
-        });
-    }
-    if (scenario === 'dense') {
-        for (let i = 0; i < 16; i++) {
-            data.timeline.push({ ...data.timeline[0], id: generateId(), task: 'Konfirmasi rombongan ' + (i + 1) + ': kedatangan, transportasi, dan kebutuhan aksesibilitas', completed: false, deadline: getSampleDate(i + 1) });
-            data.budget.push({ ...data.budget[0], id: generateId(), description: 'Transportasi dan logistik rombongan ' + (i + 1), vendor: 'Mitra logistik rombongan ' + (i + 1), category: 'Transportasi', budget: 2000000+i*100000, actualCost: 2000000+i*100000, paid: 0, status: 'Belum Dibayar', dueDate: getSampleDate(i + 1) });
-            data.vendors.push({ ...data.vendors[0], id: generateId(), name: 'Mitra logistik rombongan ' + (i + 1), category: 'Transportasi', price: 2000000+i*100000, notes: 'Vendor simulasi; biaya kendaraan dan pengantaran perlengkapan.', status: 'Terpilih' });
-            data.events.push({ id: generateId(), name: 'Koordinasi rombongan ' + (i + 1), date: today, time: String(8+Math.floor(i/4)).padStart(2,'0')+':'+String((i%4)*15).padStart(2,'0'), location: 'Ruang koordinasi keluarga', notes: i % 2 ? '' : 'Contoh catatan acara.' });
-        }
-    }
-    if (scenario === 'dense') enrichDenseSample(data);
-    data.vendors.forEach((vendor, i) => {
-        let contact = data.contacts.find(contact => contact.name === vendor.name);
-        if (!contact) {
-            const phone = '0812400'+String(i+1).padStart(5,'0');
-            contact = { id: generateId(), name: vendor.name, category: 'Vendor', company: vendor.name, phone, whatsapp: phone, email: 'vendor'+(i+1)+'@example.com', instagram: 'https://example.com/vendor/'+(i+1), address: 'Jakarta', notes: 'Kontak simulasi untuk pengujian hubungan vendor dan acara.' };
-            data.contacts.push(contact);
-        }
-        vendor.contact = contact.phone;
-    });
-    data.venues.forEach((venue, i) => {
-        let contact = data.contacts.find(contact => contact.name === venue.name);
-        if (!contact) {
-            const phone = '0812500'+String(i+1).padStart(5,'0');
-            contact = { id: generateId(), name: venue.name, category: 'Venue', company: venue.name, phone, whatsapp: phone, email: 'venue'+(i+1)+'@example.com', instagram: 'https://example.com/venue/'+(i+1), address: venue.location, notes: 'Kontak venue simulasi untuk pengujian; bukan kontak resmi.' };
-            data.contacts.push(contact);
-        }
-        venue.contact = contact.phone;
-        const payment = data.budget.find(item => item.vendor === venue.name);
-        venue.notes = venue.selected && payment
-            ? 'Venue terpilih. Status pembayaran: '+payment.status+'. Dibayar '+formatCurrency(payment.paid)+'. Sisa '+formatCurrency(payment.actualCost-payment.paid)+'.'
-            : 'Alternatif venue pembanding; belum dipilih atau belum memiliki tagihan.';
-        venue.notes += '\nData simulasi; harga, fasilitas, dan kontak bukan penawaran atau informasi resmi.';
-    });
-    data.budget.forEach(item => {
-        const deadline = item.status === 'Lunas' ? 'pembayaran selesai' : item.dueDate ? item.dueDate < today ? 'terlewat' : item.dueDate === today ? 'hari ini' : 'mendatang' : 'belum diatur';
-        const payment = item.status === 'Lunas' ? 'Lunas; tidak ada sisa pembayaran.' : 'Dibayar '+formatCurrency(item.paid)+', sisa tagihan '+formatCurrency(item.actualCost-item.paid)+'.';
-        item.notes = 'Simulasi biaya '+item.description+'.\nStatus: '+item.status+'. '+payment+'\nJatuh tempo: '+(item.dueDate || '-')+' ('+deadline+').';
-    });
-    data.settings.guestTags = [...new Set([...data.settings.guestTags, ...data.guests.map(guest => guest.tag)])];
-    data.settings.weddingRoles = [...new Set([...data.settings.weddingRoles, ...data.weddingParty.map(member => member.role)])];
-    data.guests.forEach(guest => { guest.table = data.seating.find(table => table.guests?.includes(guest.name))?.name || ''; });
-    return data;
-}
-
-function getSampleDate(offset) {
-    const date = new Date();
-    date.setDate(date.getDate() + offset);
-    return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
-}
-
-const SAMPLE_POPUP_MODULES = [
-    { label: 'Timeline', path: 'timeline', add: openAddTaskModal, edit: editTask, detail: showTaskDetail, remove: deleteTask },
-    { label: 'Rundown', path: 'rundown', add: openAddRundownModal, edit: editRundown, detail: showRundownDetail, remove: deleteRundown },
-    { label: 'Acara', path: 'events', add: openAddEventModal, edit: editEvent, detail: showEventDetail, remove: deleteEvent },
-    { label: 'Packing', path: 'packing', add: openAddPackingModal, edit: editPacking, detail: showPackingDetail, remove: deletePacking },
-    { label: 'Vendor', path: 'vendors', add: openAddVendorModal, edit: editVendor, detail: showVendorDetail, remove: deleteVendor },
-    { label: 'Kontak', path: 'contacts', add: openAddContactModal, edit: editContact, detail: showContactDetail, remove: deleteContact },
-    { label: 'Anggaran', path: 'budget', add: openAddBudgetModal, edit: editBudget, detail: showBudgetDetail, remove: deleteBudget },
-    { label: 'Tamu', path: 'guests', add: openAddGuestModal, edit: editGuest, detail: showGuestDetail, remove: deleteGuest },
-    { label: 'Wedding Party', path: 'weddingParty', add: openAddWeddingPartyModal, edit: editWeddingParty, detail: showWeddingPartyDetail, remove: deleteWeddingParty },
-    { label: 'Venue', path: 'venues', add: openAddVenueModal, edit: editVenue, detail: showVenueDetail, remove: deleteVenue },
-    { label: 'Makanan/Minuman', path: 'foodDrinks', add: openAddFoodModal, edit: editFood, detail: showFoodDetail, remove: deleteFood },
-    { label: 'Seating', path: 'seating', add: openAddTableModal, detail: showTableDetail, remove: deleteTable },
-    { label: 'Foto', path: 'photos', add: openAddPhotoModal, edit: editPhoto, detail: showPhotoDetail, remove: deletePhoto },
-    { label: 'Hadiah', path: 'gifts', add: openAddGiftModal, edit: editGift, detail: showGiftDetail, remove: deleteGift },
-    { label: 'Itinerary Honeymoon', path: 'honeymoon.itinerary', add: openAddItineraryModal, edit: editItinerary, detail: showItineraryDetail, remove: deleteItinerary },
-    { label: 'Pengeluaran Honeymoon', path: 'honeymoon.expenses', add: openAddExpenseModal, edit: editExpense, detail: showExpenseDetail, remove: deleteExpense },
-    ...Object.keys(KUA_CHECKLIST).map(section => ({ label: 'KUA: ' + section, path: 'kuaChecklist.' + section, section, add: openAddKUAModal, edit: editKUAItem, detail: showKUADetail, remove: deleteKUAItem }))
-];
-
-function openSamplePreviewMenu() {
-    const options = SAMPLE_POPUP_MODULES.map((module, index) => '<option value="' + index + '">' + escapeHtml(module.label) + '</option>').join('');
-    openModal('Uji Pop-up Modul', '<p class="text-center">Pilih modul dan jenis dialog. Edit/detail/hapus memakai data pertama; tombol Hapus hanya membuka konfirmasi. Gunakan skenario data contoh dahulu jika tidak ingin mengubah data asli.</p><label class="form-label" for="samplePopupModule">Modul</label><select class="form-control" id="samplePopupModule">' + options + '</select>', [
-        { label: 'Tutup', class: 'btn-secondary', onClick: closeModal },
-        { label: 'Tambah', class: 'btn-primary', onClick: () => previewSamplePopup('add') },
-        { label: 'Edit', class: 'btn-secondary', onClick: () => previewSamplePopup('edit') },
-        { label: 'Detail', class: 'btn-secondary', onClick: () => previewSamplePopup('detail') },
-        { label: 'Hapus', class: 'btn-danger', onClick: () => previewSamplePopup('remove') }
-    ], 'modal-lg');
-}
-
-function previewSamplePopup(action) {
-    const module = SAMPLE_POPUP_MODULES[Number(document.getElementById('samplePopupModule').value)];
-    if (!module || !module[action]) { showToast('Jenis dialog ini tidak tersedia pada modul tersebut', 'info'); return; }
-    const records = module.path.split('.').reduce((value, key) => value?.[key], weddingData);
-    const record = records?.[0];
-    if (action !== 'add' && !record) { showToast('Belum ada data. Pilih skenario terisi atau tambahkan data dahulu.', 'info'); return; }
-    closeModal(() => {
-        if (action === 'add') module[action](module.section);
-        else if (module.section) module[action](module.section, record.id);
-        else module[action](record.id);
-    });
-}
-
-function buildSampleData(scenario = 'normal') {
-    const weddingData = getDefaultData();
-    const d = getDefaultData();
-    const offsets = { normal: 75, unconfigured: 75, warnings: 7, h30: 30, h7: 7, h1: 1, today: 0, past: -7, complete: -7, dense: 75, empty: 75 };
-    const offset = offsets[scenario] ?? 75;
-    const sampleFutureDate = days => getSampleDate(days + offset - 75);
-    const wedDate = sampleFutureDate(75); // H-75: memicu countdown realistis & alert KUA H-90
-
-    // 1. Settings
-    weddingData.settings = {
-        groomName: 'Dimas Arya Pratama',
-        brideName: 'Nabila Safira Anindya',
-        weddingDate: wedDate,
-        location: 'Grand Ballroom Hotel Mulia Senayan, Jakarta Pusat',
-        currency: 'Rp',
-        targetBudget: 400000000,
-        targetGuests: 500,
-        guestTags: d.settings.guestTags,
-        weddingRoles: d.settings.weddingRoles,
-        fundSources: ['Tabungan Bersama', 'Keluarga Pengantin Pria', 'Keluarga Pengantin Wanita', 'Amplop Sumbangan']
-    };
-
-    // 2. Venues
-    const venueId1 = generateId();
-    const venueId2 = generateId();
-    weddingData.venues = [
-        {
-            id: venueId1,
-            name: 'Grand Ballroom Hotel Mulia',
-            location: 'Jl. Asia Afrika Senayan, Gelora, Jakarta Pusat',
-            capacity: 1000,
-            price: 165000000,
-            type: 'Indoor',
-            contact: '081250000001',
-            facilities: 'Full AC, Ruang Rias VIP (2 unit), Sound System 10.000W, Parkir Valet gratis 50 mobil, Listrik 40.000W',
-            pros: 'Lokasi bintang 5 prestisius, akses prima, ceiling megah 8 meter, karpet bersih',
-            cons: 'Biaya charge vendor non-rekanan 15%',
-            selected: true,
-            notes: 'DP 50% sudah lunas dibayar via transfer. Technical meeting disepakati H-14.'
-        },
-        {
-            id: venueId2,
-            name: 'Gedung Dhanapala Kemenkeu',
-            location: 'Jl. Senen Raya No.1, Ps. Baru, Jakarta Pusat',
-            capacity: 800,
-            price: 45000000,
-            type: 'Indoor',
-            contact: '081250000002',
-            facilities: 'Ruang rias ber-AC luas, karpet merah pelaminan, area parkir 500 kendaraan',
-            pros: 'Lokasi sentral, parkir sangat luas, biaya sewa relatif ekonomis',
-            cons: 'Catering wajib rekanan internal, jadwal weekend cepat penuh',
-            selected: false,
-            notes: 'Tanggal pilihan sudah terisi oleh acara kedinasan.'
-        }
-    ];
-
-    // 3. Vendors
-    const woId = generateId();
-    const photoId = generateId();
-    const muaId = generateId();
-    const caterId = generateId();
-    const decorId = generateId();
-    const attireId = generateId();
-    const musicId = generateId();
-    const inviteId = generateId();
-    const giftVendorId = generateId();
-
-    weddingData.vendors = [
-        {
-            id: woId,
-            name: 'The Signature Wedding Organizer',
-            category: 'Lainnya',
-            contact: '081299887766',
-            social: '@signature.wedding',
-            price: 45000000,
-            rating: 4.9,
-            package: 'Full Planning & D-Day Coordination (12 Crew)',
-            pros: 'Tim sangat berpengalaman, rundown detail per 15 menit, standby H-1',
-            cons: 'Biaya overtime crew Rp 1.500.000/jam',
-            status: 'Terpilih',
-            notes: 'PIC: Mbak Rina Wijaya. Sudah meeting konsep adat & resepsi.'
-        },
-        {
-            id: caterId,
-            name: 'Puspa Catering Services',
-            category: 'Catering',
-            contact: '081388776655',
-            social: '@puspacatering',
-            price: 135000000,
-            rating: 4.8,
-            package: 'Buffet 500 Pax + 6 Food Stalls (Kambing Guling, Zuppa, Salmon, dll)',
-            pros: 'Rasa autentik lezat, porsi aman, staf penyaji higienis berseragam rapi',
-            cons: 'Pesanan stall tambahan minimal 200 porsi per menu',
-            status: 'Terpilih',
-            notes: 'Food tasting selesai, menu favorit: Kambing Guling & Salmon En Croute.'
-        },
-        {
-            id: decorId,
-            name: 'Stupa Caspea Decoration',
-            category: 'Dekorasi',
-            contact: '081288889999',
-            social: '@stupacaspea',
-            price: 65000000,
-            rating: 4.9,
-            package: 'Modern Elegant White & Pastel with Fresh Florals',
-            pros: 'Portofolio megah, rangkaian bunga segar impor wangi, lighting dramatis',
-            cons: 'Bongkar pasang butuh waktu minimal 6 jam',
-            status: 'Terpilih',
-            notes: 'Pelaminan 18 meter, lorong masuk pergola bunga kanopi.'
-        },
-        {
-            id: photoId,
-            name: 'Lumina Pictures',
-            category: 'Foto & Video',
-            contact: '081355443322',
-            social: '@luminapictures',
-            price: 25000000,
-            rating: 4.8,
-            package: 'Prewedding + Same Day Edit (SDE) + 2 Album Teakwood',
-            pros: 'Warna hangat natural (earth-tone), pilot drone certified, video cinematic',
-            cons: 'File RAW tidak diberikan, kurasi album 30 hari kerja',
-            status: 'Terpilih',
-            notes: 'SDE video tayang saat resepsi sesi kedua.'
-        },
-        {
-            id: attireId,
-            name: 'Wong Hang Distinguished Tailor',
-            category: 'Busana',
-            contact: '081733221100',
-            social: '@wonghangtailor',
-            price: 20000000,
-            rating: 4.9,
-            package: 'Tuxedo Pengantin Pria (Wool Scabal) & Beskap Tradisional',
-            pros: 'Jahitan sangat presisi, potongan pas di badan (bespoke)',
-            cons: 'Fitting wajib minimal 3 kali',
-            status: 'Terpilih',
-            notes: 'Fitting final dijadwalkan H-14.'
-        },
-        {
-            id: muaId,
-            name: 'Bennu Sorumba Makeup',
-            category: 'MUA',
-            contact: '081211112222',
-            social: '@bennusorumba',
-            price: 18000000,
-            rating: 5.0,
-            package: 'Bridal Flawless Glow + 2 Ibu Pengantin',
-            pros: 'Riasan tahan air mata 12 jam, complexion ringan, aura manglingi',
-            cons: 'Harus standby mulai pukul 04:30 subuh',
-            status: 'Terpilih',
-            notes: 'Sudah test makeup & fitting veil.'
-        },
-        {
-            id: giftVendorId,
-            name: 'Kencana Luxury Souvenir',
-            category: 'Souvenir',
-            contact: '081277665544',
-            social: '@kencanasouvenir',
-            price: 15000000,
-            rating: 4.8,
-            package: '500 Pcs Reed Diffuser Aromatherapy (Amber Glass Bottle)',
-            pros: 'Wangi lavender & sandalwood mewah, kemasan rapi siap bagi',
-            cons: 'Waktu produksi 3 minggu',
-            status: 'Terpilih',
-            notes: 'Sampel wangi disetujui, kirim ke venue H-1.'
-        },
-        {
-            id: musicId,
-            name: 'Lala Entertainment & Orchestra',
-            category: 'Entertainment',
-            contact: '081133445566',
-            social: '@lala.music',
-            price: 14000000,
-            rating: 4.7,
-            package: 'Mini Chamber Orchestra (6 Pcs: Piano, Cello, 2 Biola, Saksofon, Vokal)',
-            pros: 'Musisi lulusan ISI, aransemen pop romantis elegan, vokal jernih',
-            cons: 'Sound system harus konfirmasi ke banquet hotel',
-            status: 'Terpilih',
-            notes: 'Lagu grand entrance: A Thousand Years.'
-        },
-        {
-            id: inviteId,
-            name: 'Byru Invitation & Digital',
-            category: 'Undangan',
-            contact: '081511223344',
-            social: '@byruinvitation',
-            price: 6000000,
-            rating: 4.6,
-            package: '300 Hardcover Foil Gold + Website Undangan Online Interaktif',
-            pros: 'Desain elegan emboss, website undangan responsif ada RSVP & musik',
-            cons: 'Revisi desain maksimal 3 kali',
-            status: 'Terpilih',
-            notes: 'Sample cetak sudah di-acc, sedang naik cetak.'
-        }
-    ];
-
-    // 4. Contacts (Cross-linked to Rundown PICs & Vendors)
-    weddingData.contacts = [
-        { id: generateId(), name: 'Mbak Rina Wijaya', category: 'Vendor', company: 'The Signature Wedding Organizer', phone: '081299887766', whatsapp: '081299887766', email: 'rina@signature.co.id', instagram: '@rina.signature', address: '', notes: 'PIC Utama Wedding Organizer D-Day' },
-        { id: generateId(), name: 'Bapak Surya Atmaja', category: 'Vendor', company: 'Hotel Mulia Senayan', phone: '081100001111', whatsapp: '081100001111', email: 'surya.banquet@hotelmulia.com', instagram: '', address: '', notes: 'Banquet & Venue Manager Hotel Mulia' },
-        { id: generateId(), name: 'Ibu Hj. Yuni Astuti', category: 'Keluarga Pengantin Wanita', company: 'Keluarga Besar Anindya', phone: '081244556677', whatsapp: '081244556677', email: 'yuni.astuti@gmail.com', instagram: '', address: 'Bintaro Jaya Sektor 7', notes: 'Koordinator Seragam & Konsumsi Keluarga Inti' },
-        { id: generateId(), name: 'Bpk. Dr. H. Bambang Susanto, M.M.', category: 'Keluarga Pengantin Wanita', company: 'Ayah / Wali Nikah', phone: '081122334455', whatsapp: '081122334455', email: '', instagram: '', address: 'Pondok Indah, Jakarta Selatan', notes: 'Wali Nikah Pengantin Wanita' },
-        { id: generateId(), name: 'Dimas Prasetyo', category: 'Pengiring Pria', company: 'Sahabat Pengantin Pria', phone: '081555667788', whatsapp: '081555667788', email: '', instagram: '@dimas.pras', address: 'Kemang, Jaksel', notes: 'Best Man / PIC Cincin Kawin' },
-        { id: generateId(), name: 'Ust. Ahmad Fauzi (KUA Tanah Abang)', category: 'KUA', company: 'KUA Kecamatan Tanah Abang', phone: '081399881122', whatsapp: '081399881122', email: '', instagram: '', address: 'Jl. KH. Mas Mansyur, Tanah Abang', notes: 'Penghulu Petugas Akad Nikah Resmi SIMKAH' }
-    ];
-
-    // 5. Budget (Cross-linked with vendors & demonstrates over-budget alert)
-    weddingData.budget = [
-        { id: generateId(), category: 'Venue', description: 'Grand Ballroom Hotel Mulia Senayan', vendor: 'Grand Ballroom Hotel Mulia', budget: 165000000, actualCost: 165000000, paid: 82500000, dueDate: getPastDate(15), status: 'DP', fundSource: 'Tabungan Bersama', notes: 'Sisa pelunasan H-14' },
-        { id: generateId(), category: 'Catering', description: 'Paket Buffet 500 Pax + 6 Food Stall Pilihan', vendor: 'Puspa Catering Services', budget: 120000000, actualCost: 135000000, paid: 40000000, dueDate: sampleFutureDate(20), status: 'DP', fundSource: 'Keluarga Pengantin Pria', notes: 'Penambahan 100 porsi kambing guling (Over budget)' },
-        { id: generateId(), category: 'Dekorasi', description: 'Dekorasi Pelaminan 18m, Foyer, & Lorong Bunga Masuk', vendor: 'Stupa Caspea Decoration', budget: 60000000, actualCost: 65000000, paid: 30000000, dueDate: sampleFutureDate(35), status: 'DP', fundSource: 'Keluarga Pengantin Wanita', notes: 'Rangkaian fresh flower impor wangi' },
-        { id: generateId(), category: 'Lainnya', description: 'Wedding Organizer Full Day Service (12 Crew)', vendor: 'The Signature Wedding Organizer', budget: 45000000, actualCost: 45000000, paid: 45000000, dueDate: getPastDate(30), status: 'Lunas', fundSource: 'Tabungan Bersama', notes: 'Lunas kontrak kerja' },
-        { id: generateId(), category: 'Foto & Video', description: 'Dokumentasi Prewedding, Liputan D-Day & SDE Video', vendor: 'Lumina Pictures', budget: 25000000, actualCost: 25000000, paid: 15000000, dueDate: getPastDate(3), status: 'Sebagian', fundSource: 'Tabungan Bersama', notes: 'Termin dokumentasi dan serah terima album' },
-        { id: generateId(), category: 'Busana', description: 'Jas Pengantin Bespoke & Beskap Tradisional', vendor: 'Wong Hang Distinguished Tailor', budget: 20000000, actualCost: 20000000, paid: 20000000, dueDate: getPastDate(45), status: 'Lunas', fundSource: 'Tabungan Bersama', notes: 'Lunas saat fitting bahan' },
-        { id: generateId(), category: 'MUA', description: 'Rias Pengantin Akad, Resepsi, & 2 Ibu Pengantin', vendor: 'Bennu Sorumba Makeup', budget: 18000000, actualCost: 18000000, paid: 9000000, dueDate: sampleFutureDate(50), status: 'DP', fundSource: 'Keluarga Pengantin Wanita', notes: 'DP 50% terbayar' },
-        { id: generateId(), category: 'Souvenir', description: '500 Pcs Reed Diffuser Aromatherapy Amber Bottle', vendor: 'Kencana Luxury Souvenir', budget: 15000000, actualCost: 15000000, paid: 7500000, dueDate: sampleFutureDate(10), status: 'DP', fundSource: 'Tabungan Bersama', notes: 'Pelunasan saat barang tiba di venue' },
-        { id: generateId(), category: 'Entertainment', description: 'Mini Chamber Orchestra 6 Pcs & Sound System', vendor: 'Lala Entertainment & Orchestra', budget: 14000000, actualCost: 14000000, paid: 5000000, dueDate: sampleFutureDate(40), status: 'DP', fundSource: 'Tabungan Bersama', notes: 'Sisa H-3 acara' },
-        { id: generateId(), category: 'Undangan', description: '300 Hardcover Foil Gold + Website Undangan Online', vendor: 'Byru Invitation & Digital', budget: 6000000, actualCost: 6000000, paid: 6000000, dueDate: getPastDate(20), status: 'Lunas', fundSource: 'Tabungan Bersama', notes: 'Selesai cetak dan lunas' },
-        { id: generateId(), category: 'KUA', description: 'Biaya Pencatatan Nikah Luar Balai & Transport Penghulu', vendor: 'KUA Kecamatan Tanah Abang', budget: 1000000, actualCost: 1000000, paid: 600000, dueDate: getPastDate(10), status: 'Sebagian', fundSource: 'Tabungan Bersama', notes: 'PNBP Rp 600.000 sudah disetor ke bank via SIMKAH' }
-    ];
-
-    // 6. Guests (Demonstrates WhatsApp integration & table assignment)
-    const g1 = generateId(), g2 = generateId(), g3 = generateId(), g4 = generateId(), g5 = generateId(), g6 = generateId(), g7 = generateId(), g8 = generateId(), g9 = generateId(), g10 = generateId();
-    weddingData.guests = [
-        { id: g1, name: 'Bpk. Dr. H. Bambang Susanto & Ibu', tag: 'Keluarga Pengantin Wanita', side: 'Wanita', phone: '081122334455', guestCount: 4, address: 'Jl. Bukit Hijau No. 12, Pondok Indah, Jaksel', rsvp: 'Hadir', table: 'VIP 1 (Keluarga Inti)', invitationSent: true, souvenirGiven: false, notes: 'Wali Nikah & Keluarga Inti Nabila' },
-        { id: g2, name: 'Bpk. H. Rahmat Rahardjo & Keluarga', tag: 'Keluarga Pengantin Pria', side: 'Pria', phone: '081233445566', guestCount: 6, address: 'Jl. Dharmahusada Indah No. 8, Surabaya', rsvp: 'Hadir', table: 'VIP 2 (Keluarga Inti)', invitationSent: true, souvenirGiven: false, notes: 'Keluarga Inti Dimas (Kamar Hotel 1204)' },
-        { id: g3, name: 'Prof. Dr. Ir. Hendra Gunawan & Istri', tag: 'Keluarga Pengantin Pria', side: 'Pria', phone: '081388990011', guestCount: 2, address: 'Kebayoran Baru, Jakarta Selatan', rsvp: 'Hadir', table: 'VIP 1 (Keluarga Inti)', invitationSent: true, souvenirGiven: false, notes: 'Saksi Nikah Resmi dari Pihak Pria' },
-        { id: g4, name: 'Dr. Sisca Wijaya, Sp.A & Suami', tag: 'Teman Pengantin Wanita', side: 'Wanita', phone: '081288991122', guestCount: 2, address: 'Pantai Indah Kapuk, Jakarta Utara', rsvp: 'Hadir', table: 'Meja 1 (Sahabat SMA)', invitationSent: true, souvenirGiven: false, notes: 'Sahabat SMA Nabila' },
-        { id: g5, name: 'Reza Pratama, S.E. & Pasangan', tag: 'Teman Pengantin Pria', side: 'Pria', phone: '081377889900', guestCount: 2, address: 'Kuningan, Jakarta Selatan', rsvp: 'Hadir', table: 'Meja 1 (Sahabat SMA)', invitationSent: true, souvenirGiven: false, notes: 'Sahabat Kuliah Dimas' },
-        { id: g6, name: 'Dimas Prasetyo (Groomsman)', tag: 'Pengiring Pria', side: 'Pria', phone: '081555667788', guestCount: 1, address: 'Kemang, Jakarta Selatan', rsvp: 'Hadir', table: 'Meja 2 (Bridesmaid & Groomsmen)', invitationSent: true, souvenirGiven: true, notes: 'Best Man / Pembawa Cincin' },
-        { id: g7, name: 'Nadine Aurelia (Bridesmaid)', tag: 'Pengiring Wanita', side: 'Wanita', phone: '081677889900', guestCount: 1, address: 'Senopati, Jakarta Selatan', rsvp: 'Hadir', table: 'Meja 2 (Bridesmaid & Groomsmen)', invitationSent: true, souvenirGiven: true, notes: 'Maid of Honor / Pendamping Pengantin' },
-        { id: g8, name: 'Andi Setiawan & Tim Kantor', tag: 'Teman Kerja Pengantin Pria', side: 'Pria', phone: '081299883344', guestCount: 4, address: 'SCBD Sudirman, Jakarta', rsvp: 'Mungkin', table: '', invitationSent: true, souvenirGiven: false, notes: 'Rekan Divisi Tech & Product' },
-        { id: g9, name: 'Keluarga Bpk. H. Sukardi', tag: 'Keluarga Pengantin Wanita', side: 'Wanita', phone: '081255443322', guestCount: 5, address: 'Dago, Bandung', rsvp: 'Tidak Hadir', table: '', invitationSent: true, souvenirGiven: true, notes: 'Kirim karangan bunga & transfer kado' },
-        { id: g10, name: 'Rekan Divisi Brand Marketing', tag: 'Teman Kerja Pengantin Wanita', side: 'Wanita', phone: '081344556677', guestCount: 8, address: 'Mega Kuningan, Jakarta', rsvp: 'Belum Dikonfirmasi', table: '', invitationSent: false, souvenirGiven: false, notes: 'Undangan fisik akan diantar langsung' }
-    ];
-
-    // 7. Seating (Demonstrates unassigned banner: 3 groups not assigned yet)
-    weddingData.seating = [
-        { id: generateId(), name: 'VIP 1 (Keluarga Inti)', capacity: 8, guests: ['Bpk. Dr. H. Bambang Susanto & Ibu', 'Prof. Dr. Ir. Hendra Gunawan & Istri'] },
-        { id: generateId(), name: 'VIP 2 (Keluarga Inti)', capacity: 8, guests: ['Bpk. H. Rahmat Rahardjo & Keluarga'] },
-        { id: generateId(), name: 'Meja 1 (Sahabat SMA)', capacity: 8, guests: ['Dr. Sisca Wijaya, Sp.A & Suami', 'Reza Pratama, S.E. & Pasangan'] },
-        { id: generateId(), name: 'Meja 2 (Bridesmaid & Groomsmen)', capacity: 6, guests: ['Dimas Prasetyo (Groomsman)', 'Nadine Aurelia (Bridesmaid)'] },
-        { id: generateId(), name: 'Meja 3 (Kolega Kantor)', capacity: 10, guests: [] }
-    ];
-
-    // 8. Gifts
-    weddingData.gifts = [
-        { id: generateId(), giver: 'Dr. Sisca Wijaya, Sp.A & Keluarga', type: 'Transfer', value: 'Rp 25.000.000', dateReceived: getPastDate(2), thankYouSent: true, thankYouDate: getPastDate(1), notes: 'Via BCA, ucapan selamat via WhatsApp' },
-        { id: generateId(), giver: 'Keluarga Besar Bpk. H. Rahmat Rahardjo', type: 'Barang', value: 'Logam Mulia Emas Antam 25 Gram', dateReceived: getPastDate(10), thankYouSent: true, thankYouDate: getPastDate(8), notes: 'Kado pernikahan dari keluarga besar ayah Dimas' },
-        { id: generateId(), giver: 'Rekan Divisi Brand Marketing & Tech', type: 'Barang', value: 'Dyson Airwrap Multi-Styler & Vacuum', dateReceived: getPastDate(1), thankYouSent: false, thankYouDate: '', notes: 'Hadiah patungan dikirim ke alamat rumah baru' }
-    ];
-
-    // 9. Wedding Party
-    weddingData.weddingParty = [
-        { id: generateId(), name: 'Dimas Prasetyo', role: 'Pendamping Pengantin Pria', contact: '081555667788', attire: 'Jas Dark Charcoal (Wong Hang) + Dasi Champagne', tasks: 'Membawa cincin kawin saat akad, koordinasi mobil pengantin & foto groomsmen', notes: 'Ukuran Jas: L (Fitting selesai)' },
-        { id: generateId(), name: 'Nadine Aurelia', role: 'Pendamping Pengantin Wanita', contact: '081677889900', attire: 'Gaun Silk Lilac Sage + Corsage Mawar Putih', tasks: 'Memegang hand bouquet pengantin, merapikan train gaun, koordinasi ruang rias', notes: 'Ukuran Gaun: M (Sudah diambil)' },
-        { id: generateId(), name: 'Bpk. Dr. H. Bambang Susanto, M.M.', role: 'Wali Nikah', contact: '081122334455', attire: 'Beskap Tradisional Jawa Solo Modern + Blangkon', tasks: 'Mengikrarkan ijab qabul di depan penghulu KUA', notes: 'Ayah kandung Nabila' },
-        { id: generateId(), name: 'Prof. Dr. Ir. Hendra Gunawan', role: 'Saksi', contact: '081388990011', attire: 'Jas Formal Gelap + Peci Hitam', tasks: 'Menandatangani buku nikah sebagai saksi pihak pria', notes: 'Paman dari pihak ayah Dimas' },
-        { id: generateId(), name: 'Raffi & Rayyan', role: 'Pembawa Cincin', contact: '081244556677 (Ibu Yuni)', attire: 'Setelan Jas Mini Tuxedo', tasks: 'Membawa kotak cincin ukir akrilik saat prosesi cincin', notes: 'Keponakan pengantin wanita (usia 6 tahun)' }
-    ];
-
-    // 10. Packing List
-    weddingData.packing = [
-        { id: generateId(), name: 'Buku Nikah Asli (2 Buku) & Map Dokumen KUA', category: 'Akad', quantity: 2, carrier: 'Mbak Rina Wijaya', destination: 'Meja Akad Nikah Ballroom', packed: true, notes: 'Diserahkan oleh penghulu selesai ijab qabul' },
-        { id: generateId(), name: 'Kotak Cincin Kawin & Perhiasan Mahar', category: 'Akad', quantity: 1, carrier: 'Dimas Prasetyo', destination: 'Meja Akad', packed: true, notes: 'Disimpan di safety box kamar suite' },
-        { id: generateId(), name: 'Uang Mahar Pigura & Logam Mulia Antam', category: 'Akad', quantity: 1, carrier: 'Bapak Surya Atmaja', destination: 'Meja Akad', packed: true, notes: 'Dicek keaslian sertifikat Antam' },
-        { id: generateId(), name: 'Gaun Resepsi Modern & Veil Pengantin', category: 'Resepsi', quantity: 1, carrier: 'Nabila Safira Anindya', destination: 'Ruang Rias VIP Suite', packed: false, notes: 'Sudah di-steam oleh butik' },
-        { id: generateId(), name: 'Tuxedo Pria & Sepatu Pantofel Bespoke', category: 'Resepsi', quantity: 1, carrier: 'Dimas Arya Pratama', destination: 'Kamar Suite 1202', packed: false, notes: 'Beserta dasi kupu-kupu & cufflinks' },
-        { id: generateId(), name: 'Kotak Angpao Gembok & Kunci Cadangan', category: 'Resepsi', quantity: 2, carrier: 'Ibu Hj. Yuni Astuti', destination: 'Meja Penerima Tamu Foyer', packed: true, notes: 'Kunci dipegang Ibu Yuni & Tante Tari' },
-        { id: generateId(), name: 'Buku Tamu Resepsi & Spidol Emas', category: 'Resepsi', quantity: 4, carrier: 'Mbak Rina Wijaya', destination: 'Meja Penerima Tamu', packed: true, notes: 'Beserta lembar absensi cetak backup' },
-        { id: generateId(), name: 'Souvenir Reed Diffuser (500 Box)', category: 'Vendor', quantity: 500, carrier: 'Kencana Luxury Souvenir', destination: 'Gudang Logistik Ballroom', packed: true, notes: 'Tiba di venue H-1 sore' },
-        { id: generateId(), name: 'Seserahan & Hantaran Pengantin (11 Box)', category: 'Akad', quantity: 11, carrier: 'Keluarga Pengantin Pria', destination: 'Holding Room Akad', packed: true, notes: 'Box akrilik berpita satin champagne' },
-        { id: generateId(), name: 'Emergency Kit & Obat-obatan Pribadi', category: 'Lainnya', quantity: 1, carrier: 'Nadine Aurelia', destination: 'Ruang Rias Pengantin', packed: true, notes: 'Minyak kayu putih, tolak angin, plester kaki, permen' }
-    ];
-
-    // 11. Events (Save the date)
-    weddingData.events = [
-        { id: generateId(), name: 'Lamaran & Pertemuan Keluarga', date: getPastDate(90), time: '10:00', location: 'Plataran Menteng, Jakarta Pusat', notes: 'Tukar cincin tunangan, penyerahan hantaran buah & kue. Dresscode batik.' },
-        { id: generateId(), name: 'Foto Prewedding Studio & Outdoor', date: getPastDate(45), time: '06:00', location: 'Kebun Raya Bogor & Studio Lumina', notes: 'Tema formal modern & kasual outdoor.' },
-        { id: generateId(), name: 'Pengajian Pranikah & Siraman', date: sampleFutureDate(72), time: '09:00', location: 'Kediaman Keluarga Anindya, Bintaro', notes: 'Doa bersama 100 tamu, pembagian buku pengajian & souvenir sajadah.' },
-        { id: generateId(), name: 'Akad Nikah Adat & Syukuran', date: wedDate, time: '08:00', location: 'Grand Ballroom Section A, Hotel Mulia', notes: 'Ijab qabul dengan busana adat Jawa Solo modern, dilanjutkan prosesi panggih.' },
-        { id: generateId(), name: 'Resepsi Pernikahan (Grand Wedding)', date: wedDate, time: '19:00', location: 'Grand Ballroom Hotel Mulia Senayan', notes: 'Resepsi modern internasional dengan 500 tamu undangan.' }
-    ];
-
-    // 12. Rundown (Cross-linked to Contacts & Vendors)
-    weddingData.rundown = [
-        { id: generateId(), activity: 'Make Up & Rias Pengantin Wanita', startTime: '04:30', endTime: '07:00', location: 'Ruang Rias Suite 1201', pic: 'Mbak Rina Wijaya', vendor: 'Bennu Sorumba Makeup', notes: 'Nabila dan kedua Ibu pengantin. Sarapan ringan disediakan hotel.', date: wedDate },
-        { id: generateId(), activity: 'Persiapan & Fitting Jas Pengantin Pria', startTime: '06:00', endTime: '07:00', location: 'Kamar Suite 1202', pic: 'Dimas Prasetyo', vendor: 'Wong Hang Distinguished Tailor', notes: 'Groomsmen standby membantu persiapan.', date: wedDate },
-        { id: generateId(), activity: 'Briefing Final Seluruh Vendor & Kru', startTime: '07:00', endTime: '07:30', location: 'Ballroom Foyer', pic: 'Mbak Rina Wijaya', vendor: 'The Signature Wedding Organizer', notes: 'Cek kesiapan sound system, display foto, catering, dan meja KUA.', date: wedDate },
-        { id: generateId(), activity: 'Prosesi Akad Nikah & Ijab Qabul', startTime: '08:00', endTime: '09:30', location: 'Area Akad Ballroom', pic: 'Ust. Ahmad Fauzi (KUA Tanah Abang)', vendor: 'KUA Kecamatan Tanah Abang', notes: "Khitbah, pembacaan ayat suci Al-Qur'an, ijab qabul, doa, dan penyerahan buku nikah.", date: wedDate },
-        { id: generateId(), activity: 'Sesi Foto Keluarga Inti & Mahar', startTime: '09:30', endTime: '10:30', location: 'Pelaminan Akad', pic: 'Mbak Rina Wijaya', vendor: 'Lumina Pictures', notes: 'Daftar nama keluarga inti dipandu oleh WO.', date: wedDate },
-        { id: generateId(), activity: 'Istirahat, Makan Siang & Retouch Busana Resepsi', startTime: '11:00', endTime: '16:00', location: 'Suite Room Hotel Mulia', pic: 'Ibu Hj. Yuni Astuti', vendor: 'Bennu Sorumba Makeup', notes: 'Pengantin istirahat tidur siang. Makan siang diantarkan room service.', date: wedDate },
-        { id: generateId(), activity: 'Gladi Bersih Grand Entrance & Soundcheck Band', startTime: '16:30', endTime: '17:30', location: 'Main Ballroom', pic: 'Mbak Rina Wijaya', vendor: 'Lala Entertainment & Orchestra', notes: 'Pengantin, orang tua, bridesmaid & groomsman ikut gladi posisi jalan.', date: wedDate },
-        { id: generateId(), activity: 'Open Gate & Registrasi Tamu Resepsi', startTime: '18:30', endTime: '19:00', location: 'Foyer Meja Penerima Tamu', pic: 'Ibu Hj. Yuni Astuti', vendor: 'The Signature Wedding Organizer', notes: 'Meja penerima tamu aktif, pengisian buku tamu & pembagian souvenir.', date: wedDate },
-        { id: generateId(), activity: 'Grand Entrance Pengantin & Keluarga', startTime: '19:00', endTime: '19:20', location: 'Main Ballroom & Pelaminan', pic: 'Mbak Rina Wijaya', vendor: 'Lala Entertainment & Orchestra', notes: 'Lagu grand entrance: A Thousand Years dibawakan orkestra chamber.', date: wedDate },
-        { id: generateId(), activity: 'Sambutan, Doa Restu & Ramah Tamah (Dinner)', startTime: '19:20', endTime: '21:00', location: 'Main Ballroom', pic: 'Bapak Surya Atmaja', vendor: 'Puspa Catering Services', notes: 'Buffet dan seluruh food stall dibuka. Tamu VIP bersalaman di pelaminan.', date: wedDate },
-        { id: generateId(), activity: 'Lempar Hand Bouquet & After Party Mingle', startTime: '21:00', endTime: '22:30', location: 'Dance Floor Ballroom', pic: 'Dimas Prasetyo', vendor: 'Lala Entertainment & Orchestra', notes: 'Pengantin berganti gaun pesta ringan, foto bersama teman-teman.', date: wedDate }
-    ];
-
-    // 13. Food & Drinks
-    weddingData.foodDrinks = [
-        { id: generateId(), name: 'Kambing Guling Muda & Lontong', category: 'Stall', vendor: 'Puspa Catering Services', price: 65000, quantity: 400, notes: 'Menu favorit tamu, sajikan lengkap dengan kecap rawit & acar timun', selected: true },
-        { id: generateId(), name: 'Salmon En Croute with Creamy Dill Sauce', category: 'Stall', vendor: 'Puspa Catering Services', price: 85000, quantity: 250, notes: 'Kulit pastry renyah, saus disajikan hangat', selected: true },
-        { id: generateId(), name: 'Zuppa Soup Creamy Chicken & Mushroom', category: 'Appetizer', vendor: 'Puspa Catering Services', price: 35000, quantity: 500, notes: 'Disajikan langsung dari oven pemanas di stall', selected: true },
-        { id: generateId(), name: 'Sate Ayam Madura & Lontong', category: 'Stall', vendor: 'Puspa Catering Services', price: 45000, quantity: 400, notes: 'Daging empuk tanpa lemak, bumbu kacang medok', selected: true },
-        { id: generateId(), name: 'Nasi Pandan Wangi & Beef Teriyaki', category: 'Main Course', vendor: 'Puspa Catering Services', price: 55000, quantity: 500, notes: 'Menu buffet utama, daging sapi empuk saus teriyaki gurih', selected: true },
-        { id: generateId(), name: 'Es Puter Kelapa Kopyor & Durian', category: 'Dessert', vendor: 'Puspa Catering Services', price: 25000, quantity: 400, notes: 'Disajikan di gelas kaca mini dengan topping nangka & ketan hitam', selected: true },
-        { id: generateId(), name: 'Wedding Cake 5 Tier Floral Cascading', category: 'Wedding Cake', vendor: 'Le Novelle Cake', price: 15000000, quantity: 1, notes: 'Kue dekoratif 5 tingkat dengan bunga gula edible, tingkat dasar rasa Chocolate Fudge', selected: true }
-    ];
-
-    // 14. Photos Checklist
-    weddingData.photos = [
-        { id: generateId(), shot: 'Detail Cincin Kawin di atas Mahar Akrilik & Undangan', category: 'Detail', priority: 'Tinggi', time: '05:30', location: 'Kamar Pengantin', notes: 'Komposisi flat-lay bersama parfum & sepatu', completed: false },
-        { id: generateId(), shot: 'Proses Pemasangan Veil & Riasan Final Nabila', category: 'Persiapan Pengantin', priority: 'Tinggi', time: '06:30', location: 'Ruang Rias Suite', notes: 'Close-up mata dan senyuman pengantin wanita', completed: false },
-        { id: generateId(), shot: 'First Look: Reaksi Dimas pertama kali melihat Nabila berbusana pengantin', category: 'Couple', priority: 'Sangat Tinggi', time: '07:15', location: 'Lobby Lounge Mulia', notes: 'Momen sangat emosional, kamera video dan foto stand by candid', completed: false },
-        { id: generateId(), shot: 'Momen Ijab Qabul: Jabat Tangan Wali & Pengantin Pria', category: 'Akad', priority: 'Sangat Tinggi', time: '08:15', location: 'Meja Akad Ballroom', notes: 'Fokus ekspresi wajah Dimas & Ayah Nabila saat ijab', completed: false },
-        { id: generateId(), shot: 'Pamer Buku Nikah & Cincin Kawin Bersama', category: 'Akad', priority: 'Sangat Tinggi', time: '09:00', location: 'Pelaminan Akad', notes: 'Pose resmi untuk album cetak', completed: false },
-        { id: generateId(), shot: 'Sungkeman: Pelukan Haru Pengantin dengan Orang Tua', category: 'Candid', priority: 'Sangat Tinggi', time: '09:15', location: 'Area Pelaminan', notes: 'Tangkap air mata bahagia dan pelukan erat', completed: false },
-        { id: generateId(), shot: 'Pose Kompak Bridesmaid & Groomsmen Melempar Bunga', category: 'Bridesmaid/Groomsman', priority: 'Sedang', time: '10:15', location: 'Taman Kaca Foyer', notes: 'Gaya bebas ceria penuh tawa', completed: false },
-        { id: generateId(), shot: 'Grand Entrance di bawah Chandelier Lampu Gantung', category: 'Resepsi', priority: 'Tinggi', time: '19:05', location: 'Main Ballroom', notes: 'Sudut pandang simetris dari belakang tamu menghadap pelaminan', completed: false },
-        { id: generateId(), shot: 'Foto Khusus Bersama Kakek & Nenek di Kursi Roda', category: 'Special Request', priority: 'Sangat Tinggi', time: '19:45', location: 'Samping Pelaminan VIP', notes: 'Prioritas utama agar kakek nenek tidak lelah menunggu', completed: false }
-    ];
-
-    // 15. Honeymoon
-    weddingData.honeymoon = {
-        destination: {
-            country: 'Maldives',
-            city: 'Male & South Ari Atoll',
-            departureDate: sampleFutureDate(78),
-            returnDate: sampleFutureDate(84),
-            currency: 'USD',
-            budget: 45000000
-        },
-        itinerary: [
-            { id: generateId(), date: sampleFutureDate(78), time: '08:00', activity: 'Penerbangan Singapore Airlines CGK-SIN-MLE', location: 'Bandara Soekarno-Hatta (CGK) Terminal 3', cost: 14000000, notes: 'Bawa paspor, tiket PP, dan sertifikat pernikahan' },
-            { id: generateId(), date: sampleFutureDate(78), time: '16:00', activity: 'Transfer Seaplane ke Resort Water Villa', location: 'Male Seaplane Terminal', cost: 6000000, notes: 'Pemandangan atol spektakuler dari udara' },
-            { id: generateId(), date: sampleFutureDate(78), time: '18:00', activity: 'Check-in Sunset Ocean Villa with Private Pool', location: 'Ayada Maldives Resort', cost: 0, notes: 'Welcome drink kelapa muda & honeymoon cake complimentary' },
-            { id: generateId(), date: sampleFutureDate(79), time: '08:30', activity: 'Floating Breakfast di Kolam Renang Pribadi', location: 'Private Villa Pool', cost: 1500000, notes: 'Momen foto estetik pagi hari' },
-            { id: generateId(), date: sampleFutureDate(80), time: '10:00', activity: 'Snorkeling Trip Bersama Penyu & Manta Ray', location: 'House Reef Ayada', cost: 2500000, notes: 'Perlengkapan snorkeling disediakan dive center' },
-            { id: generateId(), date: sampleFutureDate(81), time: '19:00', activity: 'Romantic Private Candlelight Dinner di Tepi Pantai', location: 'Beachfront Gazebo', cost: 4000000, notes: 'Set menu 4 course seafood, dekorasi lilin & obor romantis' },
-            { id: generateId(), date: sampleFutureDate(82), time: '14:00', activity: 'Couples Spa Massage Aromatherapy', location: 'The Secret Garden AySpa', cost: 3000000, notes: 'Perawatan relaksasi 90 menit' },
-            { id: generateId(), date: sampleFutureDate(84), time: '13:00', activity: 'Penerbangan Pulang Menuju Jakarta', location: 'Velana International Airport (MLE)', cost: 14000000, notes: 'Transit di Changi Singapore belanja oleh-oleh' }
-        ],
-        bookings: {
-            flights: [],
-            hotels: [],
-            transport: [],
-            activities: [],
-            restaurants: []
-        },
-        expenses: [
-            { id: generateId(), date: getPastDate(10), category: 'Penerbangan', description: 'Tiket Pesawat Singapore Airlines CGK-MLE PP (2 Pax)', amount: 28000000 },
-            { id: generateId(), date: getPastDate(5), category: 'Hotel', description: 'DP 50% Ayada Maldives Resort (5 Hari 4 Malam)', amount: 15000000 },
-            { id: generateId(), date: getPastDate(2), category: 'Belanja', description: 'Koper Rimowa Cabin & Perlengkapan Pantai', amount: 5500000 }
-        ]
-    };
-
-    // 16. KUA Checklist
-    const kuaChecklist = JSON.parse(JSON.stringify(KUA_CHECKLIST));
-    kuaChecklist.persiapanAwal.forEach(item => {
-        if (['ktp_suami', 'ktp_istri', 'kk', 'akta_lahir', 'pas_foto', 'surat_rt_rw', 'surat_kelurahan'].includes(item.id)) item.checked = true;
-    });
-    kuaChecklist.formulirNikah.forEach(item => {
-        if (['n1', 'n2', 'n3'].includes(item.id)) item.checked = true;
-    });
-    kuaChecklist.pendaftaran.forEach(item => {
-        if (['persiapkan_dokumen', 'daftar_online', 'pembayaran'].includes(item.id)) item.checked = true;
-    });
-    weddingData.kuaChecklist = kuaChecklist;
-
-    // 17. Timeline Tasks
-    weddingData.timeline = [
-        { id: generateId(), period: '12plus', task: 'Tentukan Tanggal & Konsep Pernikahan', deadline: getPastDate(60), assignee: 'Dimas & Nabila', priority: 'Sangat Tinggi', category: 'Perencanaan', completed: true, notes: 'Konsep adat Jawa Solo & modern' },
-        { id: generateId(), period: '12plus', task: 'Booking Grand Ballroom Hotel Mulia', deadline: getPastDate(45), assignee: 'Dimas', priority: 'Sangat Tinggi', category: 'Venue', completed: true, notes: 'DP 50% lunas' },
-        { id: generateId(), period: '6to12', task: 'Pilih & Kontrak Wedding Organizer (The Signature)', deadline: getPastDate(35), assignee: 'Nabila', priority: 'Tinggi', category: 'Vendor', completed: true, notes: 'Full planning 12 crew' },
-        { id: generateId(), period: '6to12', task: 'Food Tasting & Finalisasi Menu Puspa Catering', deadline: getPastDate(15), assignee: 'Keluarga Besar', priority: 'Tinggi', category: 'Vendor', completed: true, notes: 'Kambing guling & salmon di-acc' },
-        { id: generateId(), period: '3to6', task: 'Fitting Pertama Jas Wong Hang & Gaun Resepsi', deadline: getPastDate(10), assignee: 'Dimas & Nabila', priority: 'Tinggi', category: 'Busana', completed: true, notes: 'Fitting kedua dijadwalkan' },
-        { id: generateId(), period: '3to6', task: 'Daftar Online SIMKAH & Lengkapi Berkas KUA', deadline: sampleFutureDate(10), assignee: 'Dimas', priority: 'Sangat Tinggi', category: 'Perencanaan', completed: false, notes: 'Verifikasi berkas fisik ke KUA Tanah Abang' },
-        { id: generateId(), period: '1to3', task: 'Distribusi Undangan Fisik & Kirim WhatsApp', deadline: sampleFutureDate(25), assignee: 'Nabila & Tim WO', priority: 'Tinggi', category: 'Undangan', completed: false, notes: 'Gunakan fitur 1-klik WA di aplikasi' },
-        { id: generateId(), period: '1to3', task: 'Beli Cincin Kawin & Perhiasan Mahar', deadline: sampleFutureDate(35), assignee: 'Dimas', priority: 'Sangat Tinggi', category: 'Perencanaan', completed: false, notes: 'Frank & Co Plaza Indonesia' },
-        { id: generateId(), period: '2to4weeks', task: 'Final Technical Meeting (TM) Seluruh Vendor di Venue', deadline: sampleFutureDate(60), assignee: 'Dimas, Nabila & WO', priority: 'Sangat Tinggi', category: 'Vendor', completed: false, notes: 'Hotel Mulia Senayan' },
-        { id: generateId(), period: '1week', task: 'Pengajian Pranikah & Siraman di Rumah', deadline: sampleFutureDate(72), assignee: 'Keluarga Nabila', priority: 'Tinggi', category: 'Acara', completed: false, notes: 'Bintaro' },
-        { id: generateId(), period: 'dayof', task: 'Hari H: Akad Nikah & Resepsi Pernikahan', deadline: wedDate, assignee: 'Dimas & Nabila', priority: 'Sangat Tinggi', category: 'Acara', completed: false, notes: 'Grand Ballroom Hotel Mulia' },
-        { id: generateId(), period: 'after', task: 'Keberangkatan Honeymoon ke Maldives', deadline: sampleFutureDate(78), assignee: 'Dimas & Nabila', priority: 'Sedang', category: 'Perencanaan', completed: false, notes: 'Singapore Airlines' }
-    ];
-
-    return customizeSampleData(enrichSampleData(weddingData), scenario);
-}
-
-function getFutureDate(daysAhead) {
-    const d = new Date();
-    d.setDate(d.getDate() + daysAhead);
-    return d.toISOString().split('T')[0];
-}
-
-function getPastDate(daysAgo) {
-    const d = new Date();
-    d.setDate(d.getDate() - daysAgo);
-    return d.toISOString().split('T')[0];
-}
-
-// ========================================
 // THEME MANAGEMENT
 // ========================================
 function toggleTheme() {
@@ -8645,7 +7994,8 @@ function toggleTheme() {
     document.body.classList.add('theme-changing');
     html.setAttribute('data-theme', newTheme);
     setTimeout(() => document.body.classList.remove('theme-changing'), motionDuration('base'));
-    localStorage.setItem('wp_theme', newTheme);
+    cloud.theme = newTheme;
+    saveData();
     updateThemeIcon();
     showToast(newTheme === 'dark' ?'Mode gelap diaktifkan' : 'Mode terang diaktifkan', 'info');
 }
@@ -8678,10 +8028,10 @@ document.addEventListener('keydown', event => {
 // ========================================
 // APPLICATION BOOTSTRAP
 // ========================================
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     try {
         initStaticIcons();
-        loadData();
+        await loadData();
 
         if (!weddingData) {
             weddingData = getDefaultData();

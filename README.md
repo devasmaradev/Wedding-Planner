@@ -1,6 +1,6 @@
 # Wedding Planner App
 
-Aplikasi Wedding Planner offline-first berbasis web (HTML, CSS, JavaScript) tanpa backend. Data perencanaan disimpan secara lokal di browser (localStorage), sehingga data perencanaan tetap berada pada perangkat yang digunakan.
+Aplikasi Wedding Planner berbasis HTML, CSS, dan JavaScript pada GitHub Pages, dengan Apps Script sebagai API dan satu Google Sheet untuk data utama. Penyimpanan browser telah diganti dengan cloud; koneksi internet dan deployment API terbaru diperlukan.
 
 ## Fitur Utama
 
@@ -16,9 +16,9 @@ Aplikasi Wedding Planner offline-first berbasis web (HTML, CSS, JavaScript) tanp
 ## Cara Penggunaan
 
 1. Unduh atau clone repositori ini.
-2. Buka file `index.html` menggunakan browser modern (Chrome, Firefox, Safari, Edge).
-3. Isi nama pengantin dan tanggal pernikahan di halaman **Pengaturan**, lalu tekan **Simpan Pengaturan**.
-4. Form tambah/edit menyimpan data setelah tombol **Simpan** ditekan; aksi langsung seperti checklist menyimpan perubahan saat dijalankan. Data tersimpan di browser pada perangkat yang digunakan.
+2. Buka website melalui GitHub Pages atau server lokal pada port 5500 menggunakan browser modern.
+3. Data dimuat otomatis dari Google Sheets tanpa form akses. Isi nama pengantin/tanggal di **Pengaturan** dan tekan **Simpan Pengaturan**.
+4. Form dan aksi langsung mengantrekan perubahan ke Google Sheets. Tunggu status **Tersimpan di Google Sheets**. Jika gagal, perubahan masih di memori tab; coba ulang atau export backup sebelum menutup tab.
 
 ## Daftar isi
 
@@ -32,26 +32,11 @@ Aplikasi Wedding Planner offline-first berbasis web (HTML, CSS, JavaScript) tanp
 
 ## Penggunaan dan data
 
-Aplikasi dapat dibuka langsung melalui `index.html` tanpa instalasi atau build. Data disimpan dalam localStorage browser; browser, profil, atau perangkat lain mempunyai penyimpanan sendiri. Menghapus data situs dapat menghapus data perencanaan. Gunakan **Backup & Data** untuk export JSON dan import pemulihan.
+Aplikasi dijalankan melalui HTTP/HTTPS (GitHub Pages atau localhost:5500), bukan file://, karena origin API dibatasi. Tidak ada localStorage, sessionStorage, IndexedDB, atau cache data offline. Status koneksi dan antrean perubahan hanya berada di memori; refresh memuat ulang data dari Sheet. Tema serta penanda backup disimpan bersama data cloud. Data browser lama tidak dibaca, dihapus, atau dimigrasikan otomatis; simpan backup melalui versi lama sebelum berpindah jika diperlukan.
 
-Pengaturan memakai draft: perubahan field, Tag, Peran, dan Sumber Dana baru diterapkan setelah **Simpan Pengaturan** ditekan. Berpindah menu membatalkan draft yang belum disimpan dan menampilkan pemberitahuan. Refresh juga tidak menyimpan draft tersebut.
+Pengaturan memakai draft; perubahan diterapkan setelah Simpan Pengaturan. Navigasi membatalkan draft yang belum disimpan. Akses baru dimulai dari dashboard. Refresh/hard refresh memulihkan menu dan scroll sidebar melalui hash URL page/nav, sedangkan konten utama kembali ke atas. Interaksi pengguna membatalkan pemulihan sidebar tertunda. Hash menyimpan posisi navigasi, bukan data pribadi atau token. Tema awal light; setelah data dimuat, pilihan tema cloud diterapkan.
 
-Akses baru dimulai dari dashboard. Refresh/hard refresh memulihkan menu aktif dan posisi scroll sidebar dari sessionStorage tab yang sama; scroll konten utama kembali ke atas. Scroll sidebar disimpan melalui listener pasif dan pagehide, dipulihkan setelah layout/font siap, dan dibatasi rentang scroll yang tersedia. Interaksi pengguna membatalkan pemulihan tertunda agar tidak menarik scroll kembali. Akses baru memulai sidebar dari atas. Menu tersimpan yang tidak valid atau storage yang tidak tersedia kembali ke dashboard. Navigasi antar menu tetap berjalan selama aplikasi digunakan. Tema bawaan adalah light, termasuk ketika perangkat memakai dark mode; pilihan tema yang disimpan pengguna tetap dihormati.
-
-Fitur cetak tersedia untuk halaman aplikasi dan buku tamu resepsi. Browser dapat menyimpan hasilnya sebagai PDF. Font Google merupakan aset opsional dari jaringan; fallback font sistem tetap tersedia ketika offline.
-
-### Data contoh dan pengujian
-
-Seluruh skenario memakai fixture simulasi yang diperbarui pada 14 Oktober 2026. Kategori sesuai opsi form, vendor yang dirujuk oleh anggaran/menu/rundown tersedia, PIC memiliki kontak, tag/peran tersedia di pengaturan, dan penempatan tamu konsisten dengan seating. Kontak memakai nomor contoh serta email/domain example.com; harga, nama layanan, dan fasilitas bukan penawaran resmi.
-
-Skenario normal menyediakan 16 vendor, 27 kontak, 10 rombongan tamu, alternatif venue indoor/outdoor, menu minuman/vegetarian, biaya kue, status foto/packing campuran, serta itinerary dan pengeluaran honeymoon yang lengkap. Ini subset simulasi dari target tamu, bukan daftar seluruh undangan. Daftar panjang memperluas semua modul, termasuk kontak, tamu, venue, menu, packing, foto, wedding party, hadiah, seating, honeymoon, dan KUA. Skenario kosong tetap kosong dan tanggal belum diatur tetap menguji profil kosong; peringatan/selesai mempertahankan kondisi khususnya. Catatan kosong pada sebagian checklist tetap disengaja untuk pengujian alignment.
-
-
-Buka **Backup & Data → Isi Data** untuk memilih salah satu dari 11 skenario: kosong, belum diatur, normal, peringatan, H-30, H-7, H-1, hari pernikahan, setelah pernikahan, selesai, dan daftar panjang. Skenario mencakup judul checklist dengan/tanpa catatan, variasi RSVP/vendor/pembayaran, anggaran berlebih, tugas terlambat, seating penuh, countdown, dan daftar yang perlu discroll.
-
-**Gunakan skenario** meminta konfirmasi sebelum mengganti seluruh data lokal dan mereset penanda backup untuk pengujian pengingat backup. Export backup data pribadi terlebih dahulu. **Export JSON untuk import** hanya mengunduh fixture pilihan tanpa mengganti data aktif; file dapat diuji melalui import yang sudah tersedia.
-
-Tombol **Uji Pop-up** membuka dialog tambah, edit, detail, penempatan tamu, atau konfirmasi hapus yang tersedia pada modul pilihan. Edit/detail/hapus memerlukan data pada modul tersebut. Membuka dialog tidak menyimpan perubahan; tombol simpan atau konfirmasi hapus di dalam dialog tetap menjalankan tindakan asli aplikasi. Gunakan data contoh untuk pengujian. Skenario mempermudah pemeriksaan kondisi utama, tetapi bukan jaminan mencakup setiap kombinasi interaksi.
+Backup/import JSON dan cetak tetap tersedia. Import mengantrekan penyimpanan ke cloud. Reset mengosongkan data aktif, bukan menghapus riwayat snapshot server. Font Google opsional dengan fallback sistem, tetapi akses data utama memerlukan internet.
 
 ## Arsitektur aplikasi
 
@@ -80,15 +65,6 @@ Terdapat 19 halaman yang dikelompokkan oleh `NAV_SECTIONS`; `NAV_ITEMS`, `PAGE_R
 | Tamu & Acara | Tamu/RSVP, seating, wedding party, hadiah |
 | Hari H & Pasca Acara | Rundown, foto, kontak, honeymoon |
 | Sistem | Pengaturan; backup/import melalui modal |
-
-### Kontrak data dan perilaku
-
-- Pertahankan `STORAGE_KEY`, `DATA_VERSION`, skema data, format backup, aturan bisnis, dan kompatibilitas data yang sudah tersimpan.
-- Pertahankan ID, `name`, `data-*`, ARIA, inline handler, dan binding renderer. Fungsi yang dipanggil oleh markup harus tetap tersedia.
-- Sinkronisasi tamu dengan seating, vendor terpilih dengan anggaran, serta hubungan rundown dengan PIC/vendor harus tetap berjalan.
-- Pertahankan quick actions dashboard, peringatan anggaran/KUA/backup, tautan WhatsApp, dan kolom cetak buku tamu.
-- Formatter tanggal dipakai ulang; formatter currency dicache per kode. Listener pengaturan memakai WeakSet agar elemen yang sama tidak mendapat listener berulang.
-- Gunakan fixture terisolasi untuk pengujian; jangan menimpa atau menghapus data pengguna.
 
 ## Design system
 
@@ -191,13 +167,7 @@ Breakpoint, minimum kolom/tabel, persentase, geometri SVG, border hairline, dan 
 
 Perbaikan runtime 14 Oktober 2026 menyelesaikan referensi cache buku tamu, preview setelah filter, overflow daftar pendek, scroll lock modal/sidebar, pembatalan animasi wheel oleh pointer/keyboard, dan kontras tanggal luar bulan.
 
-- Preview dihitung saat render, reset, perubahan isi/visibilitas hasil filter, perubahan lebar, font siap, dan berakhirnya transisi display. Callback dibatch dengan requestAnimationFrame; perubahan tinggi panel sendiri tidak memicu loop pengukuran.
-- Daftar kurang dari lima item memakai tinggi dasar dan bertambah jika isi melebihi area tersebut, sehingga catatan panjang tidak memerlukan scroll internal. Daftar lima item atau lebih tetap berhenti pada pertengahan item kelima di posisi awal.
-- Scroll halaman terkunci selama modal aktif/menutup atau sidebar mobile terbuka. Perubahan breakpoint/status sidebar tidak membuka scroll selama modal masih aktif.
-- Pointerdown, keydown, dan window blur membatalkan animasi wheel. Target scroll dibatasi ulang terhadap tinggi isi aktual setiap frame agar perubahan hasil filter tidak menyisakan animasi yang terus berjalan.
-- Pengujian langsung Edge pada 14 Oktober 2026 mencakup akses baru (dashboard, light, sidebar tampil), hide sidebar, hard refresh menu Pengaturan dan posisi sidebar, tema dark/light, dialog Backup/skenario/konfirmasi dengan pembatalan dan Escape, tambah/simpan item anggaran di InPrivate, filter/Reset, detail dan pembukaan edit, navigasi bulan/Hari Ini, serta preview cetak kalender. Data di sesi utama tidak diganti. Banner KUA diverifikasi kembali pada data terisi; target anggaran kosong dan judul bulan pada preview cetak juga diperiksa setelah perbaikan. Responsivitas mobile, fokus keyboard menyeluruh, seluruh skenario/CRUD, dan ketepatan preview scroll 4.5 baris belum teruji langsung. Hasil ini tidak menjamin kesetaraan visual seluruh aplikasi.
-
-Temuan browser yang diperbaiki: banner KUA membaca `checked` (sebelumnya properti `completed` yang tidak tersedia); ringkasan anggaran kosong menampilkan Rp 0 dengan penjagaan pembagi nol untuk persentase; layout navigasi kalender pada cetak tidak menyisakan kolom tombol tersembunyi sehingga judul bulan kembali terpusat. Versi aset HTML/JavaScript/buku tamu diselaraskan menjadi `20261014browser`.
+Temuan browser yang diperbaiki: banner KUA membaca `checked` (sebelumnya properti `completed` yang tidak tersedia); ringkasan anggaran kosong menampilkan Rp 0 dengan penjagaan pembagi nol untuk persentase; layout navigasi kalender pada cetak tidak menyisakan kolom tombol tersembunyi sehingga judul bulan kembali terpusat. Versi aset saat pengujian tersebut adalah `20261014browser`; versi cloud kini `20261015loading`. Pengujian Edge itu dilakukan sebelum migrasi cloud.
 
 ## Panduan optimasi
 
@@ -245,14 +215,6 @@ Sebelum mengubah kode:
 #### JavaScript
 
 Kelompokkan kode secara konsisten:
-
-1. Konfigurasi, konstanta, registry ikon, dan tabel dispatch.
-2. State aplikasi dan cache.
-3. Penyimpanan, migrasi, backup, dan helper umum.
-4. Helper UI, navigasi, dan lifecycle render.
-5. Modul aplikasi: renderer, binding/event, lalu aksi CRUD dan detail yang berkaitan.
-6. Data contoh, tema, dan utilitas pendukung.
-7. Bootstrap/inisialisasi aplikasi.
 
 Urutan ini boleh disesuaikan jika ada ketergantungan eksekusi. Pertahankan urutan inisialisasi yang diperlukan, scope, hoisting, serta ketersediaan fungsi global untuk inline handler. Rapikan indentation, komentar, dan whitespace tanpa mengubah isi literal atau template.
 
@@ -329,20 +291,6 @@ Seluruh catatan di bawah merekam kondisi dan bukti pada saat pekerjaan masing-ma
 Sidebar tersembunyi dinonaktifkan dari interaksi/fokus menggunakan inert dan disembunyikan dari accessibility tree melalui aria-hidden. Toggle menyelaraskan aria-expanded serta pemindahan fokus. Kalender beracara mendukung Tab, Enter, dan Space tanpa mengubah posisi/ukuran sel. Pemeriksaan terisolasi mencakup desktop/mobile, hide/reopen, fokus, repeat key, markup ARIA, dan 209 render halaman. Compare ulang kontrak aktif README terhadap bagian runtime yang berubah tidak menemukan ketidaksesuaian baru; pengujian keyboard browser nyata dan tampilan masih belum dilakukan.
 
 
-### Penyelarasan lanjutan 14 Oktober 2026
-
-Catatan pembayaran fixture kini dibangun setelah seluruh penyesuaian skenario: nominal dibayar/sisa, status, dan tanggal jatuh tempo selalu mengikuti data akhir. Item lunas diberi keterangan pembayaran selesai; venue terpilih mengambil status dari item anggaran terkait. Semua venue memiliki kontak simulasi dan record kontak yang sesuai. Skenario dense menambah 12 kegiatan rundown paralel dengan waktu valid serta PIC/vendor yang tersedia; normal memiliki 11 kegiatan dan dense 23.
-
-Tombol tambah konfigurasi (Tag, Peran, Sumber Dana) memakai primary berukuran kecil, konsisten dengan fungsi tambah namun sesuai kepadatan form. CSS redundan pada editable-list-row, vendor-card-body, sidebar-close, dan fokus form dirapikan dengan mempertahankan aturan responsif/status. Definisi penyimpanan dibedakan antara data perencanaan localStorage dan navigasi sessionStorage. Pemeriksaan 11 skenario dan 209 render halaman lulus; browser visual belum diverifikasi.
-
-
-### Pembaruan fixture contoh 14 Oktober 2026
-
-Generator fixture dilengkapi tanpa mengubah skema penyimpanan/import. Vendor inti tidak lagi diubah menjadi status pembanding; alternatif terpisah mewakili status shortlist. Jadwal pembayaran dihitung relatif terhadap pernikahan, catatan multiline dan kategori valid dilengkapi, serta vendor–kontak/PIC dan tamu–seating disinkronkan. Skenario dense memakai agenda rombongan dan biaya logistik yang lebih relevan serta data panjang di semua modul. Export JSON tetap memakai envelope version/data dan tidak mengganti data aktif.
-
-Verifikasi: 11 skenario lolos pemeriksaan ID unik, kategori, status/nilai pembayaran, relasi rundown/menu/seating, dan roundtrip JSON; 209 render halaman lulus. Pembuatan fixture tidak mengubah data aktif atau storage pada pengujian terisolasi. Visual browser dan import melalui UI belum diverifikasi.
-
-
 ### Hover kartu sesuai fungsi
 
 Kartu informasi (KPI, dashboard, anggaran, vendor/venue, status terpilih, countdown, timeline, dan opsi backup) tidak lagi berubah elevasi, border, atau terangkat saat hover. Shadow dasar dan warna status tetap dipertahankan. Feedback hover tetap berlaku pada tombol, menu navigasi, tautan, checkbox, header yang bisa dibuka/tutup, serta tanggal kalender beracara; feedback area tersebut memakai perubahan warna ringan. Animasi perubahan data dan pop-up tetap tersedia.
@@ -385,10 +333,6 @@ Tombol reset filter memakai varian secondary yang netral, dengan warna mengikuti
 Panel KUA, seating, dan tabel di panel daftar mengukur posisi serta tinggi item kelima untuk menampilkan empat item penuh dan setengah item berikutnya pada posisi awal. Pengukuran terjadi saat render, reset, perubahan isi/visibilitas setelah filter, akhir transisi display, perubahan lebar container/layar, dan font siap; tidak saat scroll. Ini menggantikan perkiraan 306px untuk daftar dengan tinggi baris bervariasi. Daftar kurang dari lima item memakai tinggi dasar 306px dan bertambah sesuai tinggi isi jika diperlukan, sehingga catatan panjang tidak memunculkan scroll internal. Print tetap melepas batas tinggi. Pengujian terisolasi mencakup reset default/pencarian/dropdown dan geometri item kelima; sintaks JavaScript lulus. Visual browser belum diverifikasi.
 
 
-### Urutan informasi detail
-
-Seluruh 17 jenis detail mengikuti urutan form tambah/edit, membaca field kiri ke kanan lalu ke baris berikutnya. Field identitas juga ditampilkan sebagai baris pertama yang sesuai form, meskipun tercantum pada judul dialog. Rundown memisahkan waktu mulai/selesai; detail tamu memisahkan undangan/souvenir dan menempatkan catatan setelah keduanya. Data turunan (sisa tagihan, total menu, status checklist, kapasitas meja) ditempatkan setelah field input. Badge pada field seperti prioritas/RSVP, tautan kontak, tombol Edit/Assign, escaping, dan skema data dipertahankan. Undangan Terkirim dan Souvenir pada detail tamu kini ditampilkan sebagai dua baris teks biasa sesuai urutan form. Verifikasi: urutan 114 field pada 17 jenis form cocok dengan detail, urutan tambah/edit sama, dan 200 dialog detail pada skenario contoh berhasil dirender tanpa perubahan data. Browser visual belum diverifikasi.
-
 ### Akses detail data
 
 Kartu anggaran, checklist KUA, dan meja seating kini menyediakan tombol Detail berikon info, sama seperti modul data lainnya. Anggaran menampilkan semua field biaya, sisa tagihan, vendor, status, jatuh tempo, sumber dana, dan catatan. KUA menampilkan nama, status, dan catatan; meja menampilkan kapasitas, isi, sisa kursi, status kapasitas, dan daftar tamu. Dialog bersifat baca saja, menyediakan aksi Edit atau Assign Tamu, mempertahankan baris catatan, dan meng-escape teks data. Launcher Uji Pop-up memakai dialog detail baru tersebut. Pengujian terisolasi memeriksa field, ID tidak ditemukan, escaping, data tidak berubah, dan aksi Edit; sintaks JavaScript lulus. Visual browser belum diverifikasi.
@@ -411,18 +355,11 @@ Pola stabil juga berlaku pada kartu KPI semua modul (tinggi minimum 160px, menye
 
 Countdown sidebar memakai tinggi 192px, padding atas/bawah 2px dan kiri/kanan 16px, serta gap 8px yang sama untuk tanggal kosong, countdown aktif, hari pernikahan, serta tanggal lewat. Padding vertikal 2px merupakan pengecualian sesuai permintaan; tinggi dirampingkan untuk mengurangi ruang kosong hasil pemusatan isi. Isi dipusatkan saat muat; teks panjang membungkus dan dapat discroll tanpa mengubah tinggi kotak atau mengurangi ruang navigasi secara mendadak. Ring tetap berukuran 88px dan tidak menyusut.
 
-Verifikasi perubahan ini: 209 render halaman pada 11 skenario data lulus tanpa error dalam Node VM dengan DOM stub; sintaks JavaScript dan struktur CSS lulus. Tampilan aktual, scrollbar, dan preview cetak belum diverifikasi melalui browser.
-
 Panel daftar dashboard dan ringkasan anggaran memakai area isi tetap 306px. Panel timeline, packing, checklist KUA, seating, dan pengeluaran honeymoon memakai tinggi dasar 306px; sizeListPreviews dapat menggantinya dengan tinggi sampai pertengahan item kelima jika struktur daftar dikenali dan sedikitnya lima item tampil. Pesan kosong dipusatkan; daftar panjang memakai scroll, sedangkan panel dengan kurang dari lima item membesar jika perlu agar catatan panjang tetap tampil penuh. Body kartu data pada grid vendor/kontak/tamu/venue/menu, anggaran, wedding party, foto, dan modul sejenis mengikuti isi tanpa tinggi tetap atau scroll internal. Footer tetap berada di bawah dan kartu pada baris grid yang sama tetap sejajar; teks panjang dapat membungkus tanpa melebarkan grid. Form, header, dan ringkasan venue tetap mengikuti isi; KPI dan ringkasan dashboard mengikuti ukuran khusus yang dijelaskan di atas. Ini menggantikan aturan sebelumnya bahwa panel dashboard pendek menyusut mengikuti jumlah baris. Cetak melepaskan batas tinggi agar seluruh isi tampil.
-
-
-### Alignment konten dan skenario pengujian
 
 Baris form/grid informasi, pasangan label–nilai kartu, dan baris ringkasan biaya memakai rata atas agar teks yang membungkus tetap sejajar pada awal baris. Posisi horizontal tetap mengikuti komponen masing-masing. Ringkasan venue memakai padding vertikal 8px pada atas dan bawah untuk menghilangkan ruang bawah yang berlebihan; padding horizontal mengikuti token panel.
 
 Checklist KUA menempatkan checkbox di tengah blok judul dan catatan; catatan kosong atau hanya spasi tidak membuat baris tambahan. Teks ringkasan venue terpilih rata atas, dengan posisi horizontal semula dipertahankan. Nama pemberi hadiah memakai ketebalan teks biasa, dan divider putus-putus yang dipakai bersama oleh ringkasan biaya dihapus. Kalender memakai garis grid bersama 1px serta border luar yang konsisten agar tiap sel memiliki batas pada semua sisi.
-
-Generator data contoh kini membangun fixture terisolasi untuk 11 skenario. Pemilih menyediakan penerapan dengan konfirmasi dan export JSON untuk import. Launcher pop-up memakai dialog asli pada 20 pilihan modul/seksi, sehingga perilaku simpan/hapus tetap sama. Verifikasi Node VM mencakup 209 render halaman (11 skenario × 19 halaman), 74 pembukaan dialog, dan pemeriksaan bahwa pembuatan fixture tidak mengubah data aktif. Sintaks JavaScript dan struktur CSS diperiksa. Pemeriksaan visual browser belum tersedia; data pengguna tidak diganti selama pengujian.
 
 ### Petunjuk scroll natural
 
@@ -459,17 +396,6 @@ Kontrak spacing pada tabel di atas menggantikan pengaturan dashboard sementara y
 
 Bagian ini merangkum pekerjaan 13 Oktober 2026. Angka berikut merupakan bukti historis saat pekerjaan tersebut dijalankan, bukan jaminan untuk setiap perubahan berikutnya.
 
-### Standardisasi UI
-
-| Aspek | Hasil |
-| --- | --- |
-| Styling | Dari 119 atribut style JavaScript: 99 atribut statis diekstrak; tersisa 17 custom properties runtime pada hasil akhir audit |
-| Ikon | 21 ikon UI di luar registry dikonsolidasikan; 19 bentuk registry berulang diganti pemanggilnya |
-| Desain | Token warna/action/paper, tipografi/angka, spacing/radius, elevasi/layering, ikon, focus/modal, komponen, dan motion disatukan |
-| Perbaikan presentasi | Nilai dan progress anggaran dashboard kembali memakai interpolasi dari perhitungan yang sudah tersedia |
-| Kontras | 160 pasangan token diperiksa; minimum 4,74:1 pada kedua tema |
-| Renderer | 19 halaman, 16 dialog tambah tanpa parameter, dan enam renderer dengan fixture berisi lulus perbandingan binding |
-
 ### Optimasi tanpa perubahan desain
 
 - Menghapus 9 helper tanpa pemanggil, 10 initializer kosong, empat ikon tanpa referensi, state tak terpakai, listener kosong/duplikat, satu declaration CSS identik, dan tiga rule CSS identik.
@@ -477,41 +403,38 @@ Bagian ini merangkum pekerjaan 13 Oktober 2026. Angka berikut merupakan bukti hi
 - Menghapus 26 karakter quote key objek, 655 karakter escape/quote string, dan 20 quote CSS yang aman. Nilai string tetap dibandingkan dengan baseline.
 - Mengurutkan 2.422 declaration CSS; 254 blok berubah urutan sambil menjaga hubungan cascade.
 
-| Pemeriksaan | Hasil historis |
-| --- | --- |
-| 19 halaman dengan data awal dan data contoh | 38 output HTML identik; ID fixture acak dinormalisasi |
-| Dialog | 17 tambah dan 30 edit/detail/penempatan tamu identik |
-| Data dan cetak | Data contoh, payload localStorage, pemilihan venue, dan output buku tamu sama; versi asset dinormalisasi saat membandingkan cetak |
-| Utilitas | Format uang/tanggal/waktu dan pipeline vendor identik pada kasus yang diperiksa; debounce memakai callback/argumen terakhir |
-| Listener/cache | Satu listener dan satu update per input; empat panggilan pada dua currency memakai dua formatter |
-| Stylesheet | Struktur semantik per scope, selector, nilai, dan urutan keluarga declaration setara |
-| Ukuran sumber | JS 401.087 → 383.375 byte; CSS 94.353 → 96.475 byte, termasuk normalisasi newline dan format |
-
 ### Batas pengujian historis
-
-Pemeriksaan dilakukan dengan Node VM, fixture terisolasi, DOM stub, dan perbandingan struktur CSS. Data pengguna tidak disentuh. Browser aktif tidak tersedia saat audit dan optimasi, sehingga screenshot QA 360/768/1440px, keyboard nyata, CRUD end-to-end dalam browser, validasi CSS oleh mesin browser, serta preview print/PDF belum dilakukan. Kontras token tidak menggantikan pemeriksaan seluruh pixel/compositing. Kesetaraan visual penuh dan zero regression belum dapat diklaim.
 
 Ukuran sumber bukan benchmark performa aplikasi. Ulangi pemeriksaan yang relevan setiap kali kode berubah.
 
 ## Penggunaan proyek
 
-### Dua spreadsheet Google Sheets (opsional)
+### Deployment cloud: GitHub Pages + Apps Script + Google Sheets
 
-Gunakan dua file Google Spreadsheet dan dua project Apps Script yang terpisah. Script ini merupakan alat penyiapan di luar tiga file runtime website; belum menyediakan API atau sinkronisasi aplikasi.
+Aplikasi hanya memakai satu spreadsheet data utama dan satu script google-sheets-data.gs. Tidak memerlukan OAuth Client ID atau autentikasi aplikasi. Website terdiri dari index.html, style.css, dan script.js; backend Apps Script merupakan komponen terpisah.
 
-| Spreadsheet | Script yang dipaste | Fungsi yang dijalankan |
-| --- | --- | --- |
-| Data utama | `google-sheets-data.gs` | `setupWeddingPlannerData` |
-| Data sample | `google-sheets-samples.gs` | `setupWeddingPlannerSamples` |
+1. Buka spreadsheet utama melalui Extensions → Apps Script dan paste google-sheets-data.gs. Jalankan setupWeddingPlannerData jika tabel belum ada, lalu configureWeddingPlannerApi dari editor sebagai pemilik.
+2. configureWeddingPlannerApi menyimpan ID spreadsheet di Script Properties dan membersihkan konfigurasi akses lama. Tidak ada form atau pemeriksaan kata sandi/token.
+3. Deploy → Manage deployments → Edit → New version → Execute as Me → Who has access Anyone → Deploy. Pertahankan deployment dan URL /exec yang sudah terpasang pada CLOUD_URLS.
+4. Buka website GitHub Pages atau localhost:5500; data dimuat otomatis. Origin yang diizinkan: https://devasmaradev.github.io, http://localhost:5500, dan http://127.0.0.1:5500.
 
-Buka Extensions → Apps Script pada masing-masing spreadsheet, paste seluruh script yang sesuai, simpan, lalu jalankan fungsi dan berikan izin Google. Jangan paste keduanya dalam satu project karena masing-masing mandiri dan memiliki konstanta/helper serta onOpen sendiri. Menu masing-masing muncul setelah spreadsheet dibuka ulang. File gabungan google-sheets-setup.gs telah digantikan oleh dua file di atas.
+Transport menggunakan iframe HTML Apps Script, google.script.run, serta postMessage dengan pemeriksaan origin/channel/source. API load/save tidak memakai autentikasi; pada deployment Anyone, siapa pun yang mengetahui URL dapat membaca/mengubah dataset bersama. Pemeriksaan origin transport bukan pengganti kontrol akses server. Fungsi administrasi setup/konfigurasi tetap dibatasi kepada pemilik.
 
-Script data utama membuat 24 tab, header, filter, format angka/tanggal/teks, checkbox, dan dropdown dasar. Tidak mengisi record pribadi atau sample. Settings dan HoneymoonDestination masing-masing untuk satu baris data. Relasi vendor/PIC masih memakai nama; SeatingAssignments memakai ID dan memerlukan adapter migrasi. CalendarEvents dan HoneymoonBookings menyediakan payloadJson. Metadata sinkronisasi belum diperbarui otomatis. Menjalankan ulang mempertahankan nilai, tetapi menerapkan kembali format/validasi; header yang tidak cocok menghentikan proses sebelum penulisan.
+Tab _State adalah sumber data dan riwayat snapshot. Tabel modul menjadi proyeksi data aktif untuk dibaca; perubahan harus dilakukan melalui aplikasi, karena load membaca _State dan save menulis ulang proyeksi. Satu baris commit menyimpan revision, timestamp, dan potongan JSON untuk mempertahankan seluruh field. Jika proyeksi gagal setelah commit, API mengembalikan revision dengan peringatan. Riwayat bertambah setiap save dan perlu dikelola pemilik untuk penggunaan jangka panjang.
 
-Script sample membuat 23 tab modul dan Catalog, tanpa awalan Sample_ karena spreadsheet-nya sudah terpisah. Catalog mencatat 13 skenario: kosong, belum diatur, normal, peringatan, H-30, H-7, H-1, hari pernikahan, setelah pernikahan, selesai, daftar panjang, tanpa catatan, dan teks panjang/karakter khusus. Setiap baris memiliki scenarioId dan batchId. Menjalankan ulang menambahkan batch baru; tidak mengganti batch lama. Tanggal relatif terhadap eksekusi di Asia/Jakarta. Gunakan batch baru saat perlu menguji countdown pada hari lain. extraJson mempertahankan field tambahan; tanggal, waktu, dan telepon sample memakai teks. Sampel kosong tetap memiliki pengaturan/opsi bawaan, tanpa record bisnis. Skenario mencakup kondisi utama, bukan setiap kombinasi interaksi.
+Frontend mengantrekan penyimpanan secara berurutan dan menampilkan status server. Revision mencegah sesi lain menimpa data lebih baru. Konflik memerlukan export perubahan tab lalu reload; tidak ada merge otomatis. Timeout mencoba memeriksa writeId untuk mengenali commit yang sudah terjadi. Pending hanya ada dalam memori; beforeunload memperingatkan jika belum tersimpan. Tidak ada migrasi/penghapusan otomatis data lama dari browser atau spreadsheet.
 
-Tujuh logical assignment pada generator diganti dengan if setelah parser Apps Script menolaknya. Sintaks kedua file, setup mandiri pada dua spreadsheet simulasi, pengulangan yang mempertahankan data utama, dan dua batch sample (26 baris Catalog) lulus. Eksekusi Google Sheets nyata dan integrasi cloud belum diuji.
-
-Untuk deployment GitHub, browser baru memakai getDefaultData tanpa sample/personal; tugas timeline dan KUA bawaan tetap tersedia. Browser dengan localStorage lama mempertahankan datanya. Penggantian penyimpanan lokal ke Google Sheets masih menunggu implementasi API dan koneksi, dan belum diterapkan.
+Audit produksi menghapus fitur demonstrasi dan launcher pengujian dari website, seed tugas timeline, serta aset dan generator terkait. Preset administrasi KUA dan opsi form dipertahankan sebagai bagian aplikasi. Data bisnis awal kosong. Versi aset diselaraskan menjadi 20261015direct. Parser JavaScript dan seluruh 19 renderer dengan data awal lulus; timeline, anggaran, tamu, dan vendor awal berjumlah nol, sedangkan 24 checklist KUA bawaan tetap tersedia. Deployment/API browser nyata masih perlu diuji setelah script backend diperbarui. Pembersihan source tidak menghapus data yang sudah tersimpan pada layanan eksternal.
 
 Proyek ini dibuat untuk keperluan personal dan dapat dimodifikasi sesuai kebutuhan.
+
+
+### Pengalaman akses awal
+
+Shell aplikasi disembunyikan dan inert sejak HTML pertama, lalu ditampilkan setelah load berhasil. Untuk penyimpanan cloud yang belum memiliki snapshot, akses awal masuk dashboard dengan light mode, onboarding, profil/tanggal kosong, seluruh daftar bisnis kosong, target/nominal nol, dan checklist administrasi belum dicentang. Banner backup dan KUA belum muncul pada kondisi awal. Kondisi ini diuji pada renderer terisolasi, termasuk akses baru dengan hash menu lama. Jika Sheet utama sudah memiliki snapshot, aplikasi memuat data tersebut; browser baru bukan akun/data baru. API saat ini memakai satu dataset bersama, bukan tenant per pengguna. Tidak ada penghapusan otomatis data cloud lama. Validasi browser nyata terhadap deployment masih diperlukan.
+
+
+Penyesuaian akses langsung: form akses, token sesi, pembatasan percobaan akses, dan hashing kredensial dihapus. Loading otomatis menyediakan Coba lagi jika API gagal dan tidak membuka aplikasi sebelum data berhasil dimuat. Teks Reset Data menyebut pengosongan data aktif; riwayat server tetap disimpan.
+
+
+Perbaikan loading (15 Oktober 2026): penghubung dibatasi 20 detik, pembacaan API 30 detik, dan coba ulang menghapus iframe serta listener lama. Origin yang tidak diizinkan menampilkan pesan. Uji simulasi koneksi berhasil, timeout, dan pembersihan retry lulus. URL deployment utama saat diperiksa mengembalikan halaman Google berjudul “Salah”; koneksi produksi belum terverifikasi. Perbarui deployment Apps Script dengan versi terbaru dan akses Anyone; jika URL berubah, sesuaikan CLOUD_URLS.data di script.js. Versi aset: 20261015loading.

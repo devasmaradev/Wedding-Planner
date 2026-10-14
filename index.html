@@ -7,15 +7,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=20261014browser">
-    <script>
-        const savedTheme = localStorage.getItem('wp_theme');
-        document.documentElement.setAttribute('data-theme', savedTheme === 'dark' ? 'dark' : 'light');
-    </script>
+    <link rel="stylesheet" href="style.css?v=20261015loading">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238B7355' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z'/%3E%3C/svg%3E">
 </head>
-<body>
-    <div id="app">
+<body class="cloud-loading">
+    <div id="app" inert>
         <div class="app-bg-pattern"></div>
         
         <header class="mobile-header">
@@ -90,7 +86,7 @@
         <div class="loading-spinner"></div>
     </div>
 
-    <script src="script.js?v=20261014browser"></script>
+    <script src="script.js?v=20261015loading"></script>
 </body>
 </html>
 

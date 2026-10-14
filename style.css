@@ -2892,6 +2892,14 @@ input[type=radio] {
     content: '';
 }
 
+.cloud-loading #app { visibility: hidden; }
+.cloud-load-panel { position: fixed; inset: 0; z-index: var(--z-modal); display: flex; align-items: center; justify-content: center; overflow: auto; padding: var(--panel-padding); background: var(--bg); }
+.cloud-load-card { width: min(100%, 28rem); padding: var(--panel-padding); }
+.cloud-load-card h1, .cloud-load-card p { margin-bottom: var(--stack-gap); }
+.cloud-save-status { position: fixed; right: var(--space-4); bottom: var(--space-4); z-index: var(--z-banner); display: flex; align-items: center; gap: var(--inline-gap); max-width: calc(100vw - 32px); padding: var(--space-2) var(--space-4); color: var(--ink); border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.cloud-save-status button[hidden] { display: none; }
+@media print { .cloud-load-panel, .cloud-save-status { display: none !important; } }
+
 /* ===== CALENDAR ===== */
 .calendar-header {
     display: flex;
@@ -4801,15 +4809,8 @@ th.text-center, td.text-center, .actions-cell, .checkbox-cell { vertical-align: 
 
 .venue-selection-summary { padding-top: var(--space-2); padding-bottom: var(--space-2); }
 .form-row > div { min-width: 0; overflow-wrap: anywhere; }
-.sample-scenario-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: var(--stack-gap); }
-.sample-scenario { display: flex; flex-direction: column; gap: var(--inline-gap); padding: var(--panel-padding); border: 1px solid var(--line); border-radius: var(--r-md); }
-.sample-scenario p { margin: 0; font-size: var(--text-sm); }
-.sample-scenario .btn { margin-top: auto; }
 
 .modal-footer { flex-wrap: wrap; }
-.sample-data-actions { flex-wrap: wrap !important; justify-content: flex-end; margin-left: auto; }
-.backup-option-card:has(.sample-data-actions) { flex-wrap: wrap; }
-.backup-option-card:has(.sample-data-actions) .backup-option-info { flex-basis: 100%; }
 
 /* Stable list viewports across empty, populated and overflowing states. */
 .list-panel, .table-card-body {
@@ -4909,3 +4910,5 @@ input[type=checkbox] { transition: accent-color var(--t-fast); }
 
 .vendor-grid > .card { transition: opacity var(--t-fast), display var(--t-fast) allow-discrete, transform var(--t-base), box-shadow var(--t-base), border-color var(--t-base), background-color var(--t-fast); }
 .detail-value { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.cloud-load-card button[hidden] { display: none; }
