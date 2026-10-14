@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wedding Planner Indonesia</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=20261014browser">
+    <script>
+        const savedTheme = localStorage.getItem('wp_theme');
+        document.documentElement.setAttribute('data-theme', savedTheme === 'dark' ? 'dark' : 'light');
+    </script>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238B7355' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z'/%3E%3C/svg%3E">
+</head>
+<body>
+    <div id="app">
+        <div class="app-bg-pattern"></div>
+        
+        <header class="mobile-header">
+            <button class="hamburger-btn" id="hamburgerBtn" aria-label="Buka menu" aria-controls="sidebar" aria-expanded="true">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <h1 class="mobile-title">Wedding Planner</h1>
+            <div class="mobile-header-spacer"></div>
+        </header>
+
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <button class="sidebar-reopen" id="sidebarReopen" aria-label="Buka menu" aria-controls="sidebar" aria-expanded="true"><span aria-hidden="true">⋮</span></button>
+        <aside class="sidebar open" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <span data-icon="weddingParty" class="logo-icon" width="24" height="24"></span>
+                    <span class="logo-text">Wedding Planner</span>
+                </div>
+            </div>
+            <button class="sidebar-close" id="sidebarClose" aria-label="Tutup menu" aria-controls="sidebar" aria-expanded="true"><span aria-hidden="true">⋮</span></button>
+            
+
+
+            <div class="sidebar-countdown" id="sidebarCountdown"></div>
+            
+            <div class="sidebar-nav-slot" id="sidebarNavSlot">
+                <nav class="sidebar-nav" id="sidebarNav">
+            <div class="sidebar-actions" id="sidebarActions">
+                <button class="btn btn-secondary btn-sm btn-block" id="themeToggleBtn" onclick="toggleTheme()">
+                    <span data-icon="moon" width="16" height="16"></span>
+                    Dark Mode
+                </button>
+                <button class="btn btn-secondary btn-sm btn-block" id="backupDataBtn" onclick="openBackupModal()">
+                    <span data-icon="saveCheck" width="16" height="16"></span>
+                    Backup &amp; Data
+                </button>
+                <input type="file" id="importBackupInput" accept=".json" onchange="handleBackupImportInput(event)" class="d-none">
+            </div>
+                </nav>
+            </div>
+            
+
+        </aside>
+
+        <main class="main-content" id="mainContent"></main>
+    </div>
+
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" tabindex="-1">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle"></h3>
+                <button class="modal-close" id="modalClose" aria-label="Close modal">
+                    <span data-icon="close" width="20" height="20"></span>
+                </button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+            <div class="modal-footer" id="modalFooter"></div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer" role="status" aria-live="polite" aria-atomic="false"></div>
+
+    <div class="save-indicator" id="saveIndicator">
+        <span data-icon="check" width="16" height="16"></span>
+        <span class="save-text">Tersimpan</span>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <script src="script.js?v=20261014browser"></script>
+</body>
+</html>
+
+
